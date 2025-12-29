@@ -1,0 +1,266 @@
+"""
+Planning Agent Demo: Agent plans a project using branches for alternatives.
+
+This demo simulates a planning scenario where:
+1. Agent receives a project to plan
+2. Creates branches for different approaches
+3. Develops each approach in isolation
+4. Uses diff to compare alternatives
+5. Merges the chosen approach
+
+Shows how branches enable parallel exploration of alternatives.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+from openai import OpenAI
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ctx_cli import CTX_CLI_TOOL, execute_command
+from ctx_store import ContextStore, Message
+
+SYSTEM_PROMPT = """You are a technical architect planning a software project.
+
+You have ctx_cli for exploring and comparing different approaches:
+
+## Planning Strategy with Branches:
+1. Start on main with project requirements
+2. Create separate branches for each major alternative
+3. Develop each approach in its branch with commits
+4. Use diff to compare branches
+5. Merge the chosen approach to main
+
+## Example workflow:
+- checkout -b approach-monolith -m "Exploring monolith architecture"
+- commit -m "Monolith: [decision/tradeoff]"
+- checkout -b approach-microservices -m "Exploring microservices"
+- commit -m "Microservices: [decision/tradeoff]"
+- diff approach-monolith - Compare approaches
+- merge approach-microservices - Adopt the chosen approach
+
+## Best practices:
+- One branch per major alternative
+- Commit pros, cons, and decisions in each branch
+- Use descriptive branch names (approach-X, option-Y)
+- Diff before deciding
+- Tag the final decision
+
+Think of branches as parallel universes for exploring "what if" scenarios."""
+
+
+def run_planning():
+    """Demonstrate planning with branch alternatives."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        print("Error: Set OPENAI_API_KEY")
+        return
+
+    client = OpenAI(api_key=api_key)
+    store = ContextStore()
+    tools = [CTX_CLI_TOOL]
+
+    def chat(user_message: str, label: str = "") -> str:
+        if label:
+            print(f"\n{'━' * 60}")
+            print(f"  {label}")
+            print(f"{'━' * 60}")
+
+        store.add_message(Message(role="user", content=user_message))
+
+        for _ in range(12):
+            context = store.get_context(SYSTEM_PROMPT)
+
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=context,
+                tools=tools,
+            )
+
+            message = response.choices[0].message
+
+            if message.tool_calls:
+                store.add_message(Message(
+                    role="assistant",
+                    content=message.content or "",
+                    tool_calls=[tc.model_dump() for tc in message.tool_calls]
+                ))
+
+                tool_results = []
+                for tool_call in message.tool_calls:
+                    if tool_call.function.name == "ctx_cli":
+                        args = json.loads(tool_call.function.arguments)
+                        result, _ = execute_command(store, args["command"])
+                        cmd = args["command"]
+                        if "checkout -b" in cmd:
+                            print(f"  🌿 NEW BRANCH: {cmd[13:50]}...")
+                        elif "checkout" in cmd:
+                            print(f"  🔀 SWITCH: {cmd[:40]}")
+                        elif "merge" in cmd:
+                            print(f"  🔗 MERGE: {cmd}")
+                        elif "diff" in cmd:
+                            print(f"  📊 COMPARE: {cmd}")
+                        elif "commit" in cmd:
+                            print(f"  💾 {cmd[11:55]}...")
+                        elif "tag" in cmd:
+                            print(f"  🏷️  {cmd}")
+                        else:
+                            print(f"  [ctx] {cmd[:40]}")
+                        tool_results.append((tool_call.id, result))
+
+                for tool_id, result in tool_results:
+                    store.add_message(Message(
+                        role="tool",
+                        content=result,
+                        tool_call_id=tool_id,
+                    ))
+            else:
+                store.add_message(Message(
+                    role="assistant",
+                    content=message.content or "",
+                ))
+                response_short = (message.content or "")[:280]
+                if len(message.content or "") > 280:
+                    response_short += "..."
+                print(f"\n  {response_short}")
+                return message.content or ""
+
+        return "[Max rounds]"
+
+    print("=" * 70)
+    print("PLANNING AGENT DEMO: Exploring Alternatives with Branches")
+    print("=" * 70)
+    print("\nSimulating architecture planning with multiple approaches...")
+    print("Watch how branches enable parallel exploration.\n")
+
+    # =========================================================================
+    # Phase 1: Gather requirements
+    # =========================================================================
+    chat("""
+    I need to design a real-time collaborative document editor (like Google Docs).
+
+    Key requirements:
+    - Multiple users editing simultaneously
+    - Changes visible in real-time
+    - Offline support
+    - Version history
+    - Scale to 100 concurrent editors per document
+
+    First, commit the requirements on main, then we'll explore approaches.
+    """, label="REQUIREMENTS: Collaborative Editor")
+
+    # =========================================================================
+    # Phase 2: Explore Approach A - OT (Operational Transformation)
+    # =========================================================================
+    chat("""
+    Let's explore our first approach: Operational Transformation (OT).
+
+    Create a branch for this approach and analyze:
+    - How OT works
+    - Pros and cons
+    - Implementation complexity
+    - Scalability considerations
+
+    Commit your analysis.
+    """, label="APPROACH A: Operational Transformation")
+
+    chat("""
+    For the OT approach, what tech stack would you recommend?
+    Consider: server framework, real-time protocol, storage.
+    Commit the tech stack for this approach.
+    """, label="APPROACH A: Tech Stack")
+
+    # =========================================================================
+    # Phase 3: Explore Approach B - CRDT
+    # =========================================================================
+    chat("""
+    Now let's explore the alternative: CRDTs (Conflict-free Replicated Data Types).
+
+    Create a new branch from main (not from OT branch) and analyze:
+    - How CRDTs work
+    - Pros and cons vs OT
+    - Implementation complexity
+    - Offline support advantages
+
+    Commit your analysis.
+    """, label="APPROACH B: CRDTs")
+
+    chat("""
+    For the CRDT approach, what tech stack would you use?
+    There are libraries like Yjs, Automerge - consider those.
+    Commit the tech stack for this approach.
+    """, label="APPROACH B: Tech Stack")
+
+    # =========================================================================
+    # Phase 4: Compare and decide
+    # =========================================================================
+    chat("""
+    Now let's compare the two approaches.
+
+    Use diff to see the difference between the OT and CRDT branches.
+    Then give me your recommendation: which approach should we choose?
+    """, label="COMPARISON: OT vs CRDT")
+
+    chat("""
+    Based on your analysis, let's go with your recommended approach.
+
+    Merge that branch into main and tag it as our architecture decision.
+    Show me the final branch state and history.
+    """, label="DECISION: Final Architecture")
+
+    # =========================================================================
+    # Results
+    # =========================================================================
+    print("\n" + "=" * 70)
+    print("PLANNING SESSION RESULTS")
+    print("=" * 70)
+
+    print("\n🌿 Branches Explored:")
+    result, _ = store.branch()
+    for line in result.split("\n"):
+        if line.strip():
+            branch_name = line.strip().replace("* ", "→ ").replace("  ", "  ")
+            print(f"  {branch_name}")
+
+    print("\n📋 Decision Trail (All Commits):")
+    for branch_name, branch in store.branches.items():
+        if branch.commits:
+            print(f"\n  [{branch_name}]")
+            for commit in branch.commits:
+                print(f"    [{commit.hash[:7]}] {commit.message[:50]}...")
+
+    print("\n🔗 Merge Events:")
+    merge_events = [e for e in store.events if e.type == "merge"]
+    if merge_events:
+        for e in merge_events:
+            source = e.payload.get("source_branch", "?")
+            commits = e.payload.get("commits_merged", 0)
+            print(f"  Merged '{source}' ({commits} commits)")
+    else:
+        print("  (no merges yet)")
+
+    print("\n🏷️  Architecture Decision:")
+    if store.tags:
+        for name, tag in store.tags.items():
+            print(f"  {name}: {tag.description[:60]}...")
+    else:
+        print("  (no tags)")
+
+    print("\n📊 Planning Statistics:")
+    print(f"  Alternatives explored: {len(store.branches) - 1}")  # Exclude main
+    print(f"  Total commits: {sum(len(b.commits) for b in store.branches.values())}")
+    print(f"  Comparisons (diff): {len([e for e in store.events if e.type == 'diff'])}")
+    print(f"  Final decision merged: {'Yes' if merge_events else 'No'}")
+
+    print("\n💡 Key Insight:")
+    print("  Branches allowed exploring OT and CRDT in isolation.")
+    print("  Each approach was developed fully before comparison.")
+    print("  Diff provided clear visibility into tradeoffs.")
+
+
+if __name__ == "__main__":
+    run_planning()

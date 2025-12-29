@@ -184,9 +184,68 @@ class Branch:
                 commit_context += f"- [{c.hash[:7]}] {c.message}\n"
             result.append({"role": "system", "content": commit_context})
 
-        # Add working messages
-        for msg in self.messages:
+        # Add working messages with validation
+        validated_messages = self._validate_tool_call_sequence(self.messages)
+        for msg in validated_messages:
             result.append(msg.to_openai_format())
+
+        return result
+
+    def _validate_tool_call_sequence(self, messages: list) -> list:
+        """Validate and fix tool_call sequences to ensure API compatibility.
+
+        Rules:
+        1. Every tool message must have a preceding assistant with matching tool_call_id
+        2. Every assistant with tool_calls must have all responses (or be at the end)
+        """
+        if not messages:
+            return messages
+
+        result = []
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+
+            if msg.role == "assistant" and msg.tool_calls:
+                # Collect expected tool_call_ids
+                expected_ids = set()
+                for tc in msg.tool_calls:
+                    tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                    if tc_id:
+                        expected_ids.add(tc_id)
+
+                # Find all tool responses that follow
+                tool_responses = []
+                j = i + 1
+                while j < len(messages) and messages[j].role == "tool":
+                    tool_responses.append(messages[j])
+                    j += 1
+
+                # Check if we have all responses
+                actual_ids = {tr.tool_call_id for tr in tool_responses if tr.tool_call_id}
+
+                if expected_ids == actual_ids:
+                    # Complete chain - include all
+                    result.append(msg)
+                    result.extend(tool_responses)
+                    i = j
+                elif j == len(messages):
+                    # At the end with incomplete chain - include anyway
+                    # (the next API response will complete it)
+                    result.append(msg)
+                    result.extend(tool_responses)
+                    i = j
+                else:
+                    # Incomplete chain in the middle - skip this assistant and its responses
+                    # (this shouldn't happen in normal operation but provides safety)
+                    i = j
+            elif msg.role == "tool":
+                # Orphan tool message - skip it
+                i += 1
+            else:
+                # Regular message - include it
+                result.append(msg)
+                i += 1
 
         return result
 
@@ -260,19 +319,46 @@ class ContextStore:
 
         branch.commits.append(commit)
 
-        # Clear working messages, but preserve recent tool_calls chain
-        # to maintain API compatibility
-        preserved = []
-        for msg in reversed(branch.messages):
-            if msg.role == "tool":
-                preserved.insert(0, msg)
-            elif msg.role == "assistant" and msg.tool_calls:
-                preserved.insert(0, msg)
-                break
+        # Clear working messages, but preserve if we're in a tool_call loop
+        # (i.e., if the last message is an assistant with tool_calls)
+        #
+        # This handles the case where the model calls commit in the middle of
+        # processing multiple tool_calls - we need to keep the context intact
+        # until all tool responses have been added.
+        if branch.messages:
+            last_msg = branch.messages[-1]
+            if last_msg.role == "assistant" and last_msg.tool_calls:
+                # We're in the middle of a tool_call loop - don't clear
+                pass
             else:
-                break
+                # Safe to clear - check for complete tool_calls chain to preserve
+                preserved = []
+                assistant_msg = None
+                tool_responses = []
 
-        branch.messages = preserved
+                for msg in reversed(branch.messages):
+                    if msg.role == "tool":
+                        tool_responses.insert(0, msg)
+                    elif msg.role == "assistant" and msg.tool_calls:
+                        assistant_msg = msg
+                        break
+                    else:
+                        break
+
+                # Only preserve if ALL tool_calls have responses
+                if assistant_msg and assistant_msg.tool_calls:
+                    expected_ids = set()
+                    for tc in assistant_msg.tool_calls:
+                        tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                        if tc_id:
+                            expected_ids.add(tc_id)
+
+                    actual_ids = {tr.tool_call_id for tr in tool_responses if tr.tool_call_id}
+
+                    if expected_ids and expected_ids == actual_ids:
+                        preserved = [assistant_msg] + tool_responses
+
+                branch.messages = preserved
 
         # Emit event
         event = self._emit_event("commit", {
@@ -296,15 +382,30 @@ class ContextStore:
         source_branch = self._get_current_branch()
 
         # Find pending tool_calls chain to preserve
+        # Must handle the case where checkout is one of multiple tool_calls
         pending_messages = []
-        for msg in reversed(source_branch.messages):
-            if msg.role == "tool":
-                pending_messages.insert(0, msg)
-            elif msg.role == "assistant" and msg.tool_calls:
-                pending_messages.insert(0, msg)
-                break
-            else:
-                break
+
+        if source_branch.messages:
+            # Find the most recent assistant with tool_calls
+            assistant_msg = None
+            assistant_idx = -1
+            for i in range(len(source_branch.messages) - 1, -1, -1):
+                msg = source_branch.messages[i]
+                if msg.role == "assistant" and msg.tool_calls:
+                    assistant_msg = msg
+                    assistant_idx = i
+                    break
+
+            if assistant_msg:
+                # Collect all tool responses that came after this assistant
+                # (some may have been processed before checkout was called)
+                tool_responses = []
+                for msg in source_branch.messages[assistant_idx + 1:]:
+                    if msg.role == "tool":
+                        tool_responses.append(msg)
+
+                # Always carry the assistant and any existing tool responses
+                pending_messages = [assistant_msg] + tool_responses
 
         # Create branch if needed
         if branch_name not in self.branches:
@@ -321,13 +422,32 @@ class ContextStore:
         # Carry over pending tool_calls chain to target branch
         # This ensures API compatibility when switching mid-toolcall
         if pending_messages:
-            # Check if target already has these messages (avoid duplicates)
-            if not target_branch.messages or target_branch.messages[-len(pending_messages):] != pending_messages:
-                # Merge pending messages, avoiding duplicates
-                existing_ids = {getattr(m, 'tool_call_id', None) for m in target_branch.messages if hasattr(m, 'tool_call_id')}
-                for msg in pending_messages:
-                    msg_id = getattr(msg, 'tool_call_id', None)
-                    if msg_id not in existing_ids:
+            # Get existing tool_call_ids in target branch (only for tool messages)
+            existing_tool_ids = {
+                m.tool_call_id for m in target_branch.messages
+                if m.role == "tool" and m.tool_call_id
+            }
+
+            # Check if we already have an assistant with matching tool_calls
+            existing_tool_call_ids = set()
+            for m in target_branch.messages:
+                if m.role == "assistant" and m.tool_calls:
+                    for tc in m.tool_calls:
+                        tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                        if tc_id:
+                            existing_tool_call_ids.add(tc_id)
+
+            for msg in pending_messages:
+                if msg.role == "assistant" and msg.tool_calls:
+                    # Check if this assistant's tool_calls are already present
+                    first_tc_id = None
+                    if msg.tool_calls:
+                        tc = msg.tool_calls[0]
+                        first_tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                    if first_tc_id and first_tc_id not in existing_tool_call_ids:
+                        target_branch.messages.append(msg)
+                elif msg.role == "tool" and msg.tool_call_id:
+                    if msg.tool_call_id not in existing_tool_ids:
                         target_branch.messages.append(msg)
 
         # Set the transition note as HEAD
@@ -517,18 +637,40 @@ class ContextStore:
 
         self.stash.append(entry)
 
-        # Clear working messages, but preserve recent tool_calls chain
-        preserved = []
-        for msg in reversed(branch.messages):
-            if msg.role == "tool":
-                preserved.insert(0, msg)
-            elif msg.role == "assistant" and msg.tool_calls:
-                preserved.insert(0, msg)
-                break
+        # Clear working messages, but preserve if we're in a tool_call loop
+        if branch.messages:
+            last_msg = branch.messages[-1]
+            if last_msg.role == "assistant" and last_msg.tool_calls:
+                # We're in the middle of a tool_call loop - don't clear
+                pass
             else:
-                break
+                # Safe to clear - check for complete tool_calls chain to preserve
+                preserved = []
+                assistant_msg = None
+                tool_responses = []
 
-        branch.messages = preserved
+                for msg in reversed(branch.messages):
+                    if msg.role == "tool":
+                        tool_responses.insert(0, msg)
+                    elif msg.role == "assistant" and msg.tool_calls:
+                        assistant_msg = msg
+                        break
+                    else:
+                        break
+
+                if assistant_msg and assistant_msg.tool_calls:
+                    expected_ids = set()
+                    for tc in assistant_msg.tool_calls:
+                        tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                        if tc_id:
+                            expected_ids.add(tc_id)
+
+                    actual_ids = {tr.tool_call_id for tr in tool_responses if tr.tool_call_id}
+
+                    if expected_ids and expected_ids == actual_ids:
+                        preserved = [assistant_msg] + tool_responses
+
+                branch.messages = preserved
 
         event = self._emit_event("stash", {
             "message": message,
@@ -553,9 +695,21 @@ class ContextStore:
         else:
             entry = self.stash.pop()
 
-        # Restore to current branch
         branch = self._get_current_branch()
-        branch.messages = [
+
+        # Preserve current tool_call chain (the one that triggered stash_pop)
+        current_chain = []
+        if branch.messages:
+            # Find the most recent assistant with tool_calls
+            for i in range(len(branch.messages) - 1, -1, -1):
+                msg = branch.messages[i]
+                if msg.role == "assistant" and msg.tool_calls:
+                    # Collect assistant and all tool responses after it
+                    current_chain = branch.messages[i:]
+                    break
+
+        # Restore stashed messages
+        restored_messages = [
             Message(
                 role=m["role"],
                 content=m.get("content", ""),
@@ -565,6 +719,9 @@ class ContextStore:
             )
             for m in entry.messages
         ]
+
+        # Combine: restored messages + current tool_call chain
+        branch.messages = restored_messages + current_chain
 
         event = self._emit_event("pop", {"stash_id": entry.id})
 
