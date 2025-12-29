@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
-from policies import PolicyEngine, MaxMessagesPolicy, MaxTokensPolicy, InactivityPolicy
+from policies import PolicyEngine, MaxMessagesPolicy, MaxTokensPolicy, InactivityPolicy, PolicyAction
 from tokens import TokenTracker
 
 SYSTEM_PROMPT = """You are a helpful assistant working on a task.
@@ -47,11 +47,11 @@ def run_policies_demo():
     tracker = TokenTracker(model="gpt-4.1-mini")
     tools = [CTX_CLI_TOOL]
 
-    # Configure policies
+    # Configure policies with lower thresholds for demo
     policies = PolicyEngine([
-        MaxMessagesPolicy(max_messages=6),  # Auto-commit after 6 messages
-        MaxTokensPolicy(max_tokens=2000, tracker=tracker),  # Auto-commit at 2k tokens
-        InactivityPolicy(max_without_commit=4),  # Remind after 4 messages without commit
+        MaxMessagesPolicy(max_messages=6, warn_at=4),
+        MaxTokensPolicy(max_tokens=2000, warn_at=1500, token_counter=tracker.count),
+        InactivityPolicy(max_messages_since_commit=4),
     ])
 
     auto_commits = []
@@ -59,23 +59,28 @@ def run_policies_demo():
 
     def check_and_apply_policies() -> str | None:
         """Check policies and auto-commit if needed."""
-        branch = store.branches[store.current_branch]
-        result = policies.evaluate(branch.messages, branch.commits)
+        results = policies.evaluate(store)
 
-        if result.should_commit:
-            # Auto-commit
-            messages_summary = f"Auto-commit: {len(branch.messages)} messages"
-            commit_result, event = store.commit(result.suggested_message or messages_summary)
-            auto_commits.append({
-                "policy": result.triggered_by,
-                "message": result.suggested_message,
-                "messages_count": len(branch.messages),
-            })
-            policy_triggers.append(result.triggered_by)
-            return f"[POLICY: {result.triggered_by}] {commit_result}"
+        for result in results:
+            if result.triggered:
+                if result.action == PolicyAction.FORCE_COMMIT:
+                    # Auto-commit
+                    branch = store.branches[store.current_branch]
+                    commit_msg = result.auto_commit_message or f"Auto-commit: {len(branch.messages)} messages"
+                    commit_result, event = store.commit(commit_msg)
+                    auto_commits.append({
+                        "message": commit_msg,
+                        "messages_count": len(branch.messages),
+                    })
+                    policy_triggers.append("force_commit")
+                    return f"[AUTO-COMMIT] {commit_result}"
 
-        if result.warning:
-            return f"[POLICY WARNING: {result.warning}]"
+                elif result.action == PolicyAction.SUGGEST_COMMIT:
+                    policy_triggers.append("suggest")
+                    return f"[POLICY] {result.message}"
+
+                elif result.action == PolicyAction.WARN:
+                    return f"[WARNING] {result.message}"
 
         return None
 
@@ -154,13 +159,13 @@ def run_policies_demo():
     print("AUTO-COMMIT POLICIES DEMO")
     print("=" * 70)
     print("\nPolicies configured:")
-    print("  • MaxMessagesPolicy: auto-commit after 6 messages")
-    print("  • MaxTokensPolicy: auto-commit at 2000 tokens")
-    print("  • InactivityPolicy: warn after 4 messages without commit")
-    print("\nWatch how the system automatically manages context...\n")
+    print("  • MaxMessagesPolicy: warn at 4, suggest commit at 6 messages")
+    print("  • MaxTokensPolicy: warn at 1500, suggest commit at 2000 tokens")
+    print("  • InactivityPolicy: suggest commit after 4 messages since last commit")
+    print("\nWatch how the system monitors and suggests context management...\n")
 
     # =========================================================================
-    # Simulate a long conversation without manual commits
+    # Simulate a conversation without manual commits
     # =========================================================================
     chat("""
     Start a new branch for this task. I need help designing a REST API
@@ -198,22 +203,31 @@ def run_policies_demo():
     """, label="STEP 7: Error Handling")
 
     chat("""
-    Great session! Show me the status and log to see what was auto-committed.
-    """, label="REVIEW: Check Auto-commits")
+    Great session! Show me the status and log to see what happened.
+    """, label="REVIEW: Check Results")
 
     # =========================================================================
     # Results
     # =========================================================================
     print("\n" + "=" * 70)
-    print("POLICY ENFORCEMENT RESULTS")
+    print("POLICY MONITORING RESULTS")
     print("=" * 70)
 
-    print("\n🔔 Auto-commits Triggered:")
-    if auto_commits:
-        for ac in auto_commits:
-            print(f"  [{ac['policy']}] {ac['message'][:50]}... ({ac['messages_count']} msgs)")
+    print("\n🔔 Policy Triggers:")
+    if policy_triggers:
+        from collections import Counter
+        counts = Counter(policy_triggers)
+        for trigger, count in counts.items():
+            print(f"  {trigger}: {count} times")
     else:
         print("  (none)")
+
+    print("\n💾 Auto-commits Made:")
+    if auto_commits:
+        for ac in auto_commits:
+            print(f"  • {ac['message'][:50]}... ({ac['messages_count']} msgs)")
+    else:
+        print("  (none - model committed manually or policies just warned)")
 
     print("\n📋 Commit Log:")
     result, _ = store.log(limit=10)
@@ -221,20 +235,15 @@ def run_policies_demo():
         if line.strip():
             print(f"  {line}")
 
-    print("\n📊 Statistics:")
+    print("\n📊 Final Statistics:")
     total_commits = sum(len(b.commits) for b in store.branches.values())
-    manual_commits = total_commits - len(auto_commits)
     print(f"  Total commits: {total_commits}")
     print(f"  Auto-commits: {len(auto_commits)}")
-    print(f"  Manual commits: {manual_commits}")
     print(f"  Policy triggers: {len(policy_triggers)}")
 
     print("\n💡 Policy Value:")
-    print("  Without policies, context would have grown unbounded.")
-    print("  Policies ensure context stays manageable automatically.")
-
-    if policy_triggers:
-        print(f"\n  Most active policy: {max(set(policy_triggers), key=policy_triggers.count)}")
+    print("  Policies monitor context growth and prompt for commits.")
+    print("  This prevents context overflow and lost reasoning.")
 
 
 if __name__ == "__main__":
