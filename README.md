@@ -67,7 +67,6 @@ When context grows too large:
 | `cherry-pick hash` | Apply specific commit to current branch |
 | `reset hash [--hard]` | Go back to a previous state |
 | `bisect start/good/bad/reset` | Binary search for reasoning errors |
-| `reflog` | Show history of HEAD changes for recovery |
 
 ## Token Economics
 
