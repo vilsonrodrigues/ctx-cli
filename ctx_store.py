@@ -53,7 +53,10 @@ class PopPayload(TypedDict):
 class Event:
     """Represents a context management event."""
 
-    type: Literal["commit", "checkout", "branch", "tag", "log", "status", "diff", "history", "stash", "pop"]
+    type: Literal[
+        "commit", "checkout", "branch", "tag", "log", "status", "diff",
+        "history", "stash", "pop", "merge", "cherry-pick", "bisect", "reset"
+    ]
     timestamp: str
     branch: str
     payload: dict
@@ -524,6 +527,331 @@ class ContextStore:
 
         self.command_history.append("stash list")
         return "\n".join(lines), None
+
+    def merge(self, source_branch: str, message: str | None = None) -> tuple[str, Event | None]:
+        """
+        Merge commits from source branch into current branch.
+
+        This creates a merge commit that combines the episodic memory
+        (commits) from both branches.
+        """
+        if source_branch not in self.branches:
+            return f"error: branch '{source_branch}' does not exist", None
+
+        if source_branch == self.current_branch:
+            return "error: cannot merge branch into itself", None
+
+        source = self.branches[source_branch]
+        target = self._get_current_branch()
+
+        if not source.commits:
+            return f"error: branch '{source_branch}' has no commits to merge", None
+
+        # Find commits in source that are not in target (by hash)
+        target_hashes = {c.hash for c in target.commits}
+        new_commits = [c for c in source.commits if c.hash not in target_hashes]
+
+        if not new_commits:
+            return f"Already up to date with '{source_branch}'", None
+
+        # Create merge commit
+        merge_message = message or f"Merge branch '{source_branch}' into {self.current_branch}"
+        merged_summaries = "\n".join(f"  - [{c.hash[:7]}] {c.message}" for c in new_commits)
+
+        merge_hash = self._generate_hash(
+            f"merge{source_branch}{self.current_branch}{datetime.now().isoformat()}"
+        )
+
+        merge_commit = Commit(
+            hash=merge_hash,
+            message=f"{merge_message}\n\nMerged commits:\n{merged_summaries}",
+            timestamp=datetime.now().isoformat(),
+            messages_snapshot=[],
+            parent_hash=target.get_last_commit_hash(),
+        )
+
+        # Add merged commits (preserving their messages) then merge commit
+        for c in new_commits:
+            target.commits.append(c)
+        target.commits.append(merge_commit)
+
+        event = self._emit_event("merge", {
+            "source_branch": source_branch,
+            "target_branch": self.current_branch,
+            "merged_commits": len(new_commits),
+            "merge_hash": merge_hash,
+        })
+
+        self.command_history.append(f"merge {source_branch}")
+
+        return (
+            f"Merged {len(new_commits)} commit(s) from '{source_branch}'\n"
+            f"Merge commit: [{merge_hash[:7]}]"
+        ), event
+
+    def cherry_pick(self, commit_ref: str) -> tuple[str, Event | None]:
+        """
+        Apply a specific commit from any branch to current branch.
+
+        commit_ref can be a commit hash (partial or full) or tag name.
+        """
+        # Find the commit
+        target_commit = None
+        source_branch_name = None
+
+        # Check if it's a tag
+        if commit_ref in self.tags:
+            tag = self.tags[commit_ref]
+            commit_ref = tag.commit_hash
+
+        # Search for commit in all branches
+        for branch_name, branch in self.branches.items():
+            for commit in branch.commits:
+                if commit.hash.startswith(commit_ref):
+                    target_commit = commit
+                    source_branch_name = branch_name
+                    break
+            if target_commit:
+                break
+
+        if not target_commit:
+            return f"error: commit '{commit_ref}' not found", None
+
+        current = self._get_current_branch()
+
+        # Check if already in current branch
+        if any(c.hash == target_commit.hash for c in current.commits):
+            return f"error: commit [{target_commit.hash[:7]}] already exists in current branch", None
+
+        # Create cherry-pick commit
+        cherry_hash = self._generate_hash(
+            f"cherry{target_commit.hash}{datetime.now().isoformat()}"
+        )
+
+        cherry_commit = Commit(
+            hash=cherry_hash,
+            message=f"[cherry-pick from {source_branch_name}] {target_commit.message}",
+            timestamp=datetime.now().isoformat(),
+            messages_snapshot=target_commit.messages_snapshot.copy(),
+            parent_hash=current.get_last_commit_hash(),
+        )
+
+        current.commits.append(cherry_commit)
+
+        event = self._emit_event("cherry-pick", {
+            "source_commit": target_commit.hash,
+            "source_branch": source_branch_name,
+            "new_hash": cherry_hash,
+        })
+
+        self.command_history.append(f"cherry-pick {commit_ref}")
+
+        return (
+            f"Cherry-picked [{target_commit.hash[:7]}] from '{source_branch_name}'\n"
+            f"New commit: [{cherry_hash[:7]}] {target_commit.message}"
+        ), event
+
+    def bisect_start(self) -> tuple[str, Event]:
+        """Start a bisect session to find where reasoning diverged."""
+        current = self._get_current_branch()
+
+        if not current.commits:
+            return "error: no commits to bisect", None
+
+        if len(current.commits) < 2:
+            return "error: need at least 2 commits to bisect", None
+
+        # Store bisect state in a special attribute
+        if not hasattr(self, '_bisect_state'):
+            self._bisect_state = {}
+
+        self._bisect_state = {
+            "active": True,
+            "branch": self.current_branch,
+            "good": None,
+            "bad": None,
+            "current_idx": None,
+            "commits": [c.hash for c in current.commits],
+        }
+
+        event = self._emit_event("bisect", {
+            "action": "start",
+            "total_commits": len(current.commits),
+        })
+
+        self.command_history.append("bisect start")
+
+        return (
+            f"Bisect started on '{self.current_branch}' ({len(current.commits)} commits)\n"
+            "Use 'bisect good <commit>' and 'bisect bad <commit>' to mark commits"
+        ), event
+
+    def bisect_good(self, commit_ref: str | None = None) -> tuple[str, Event | None]:
+        """Mark a commit as good (reasoning was correct here)."""
+        if not hasattr(self, '_bisect_state') or not self._bisect_state.get("active"):
+            return "error: no bisect session active. Run 'bisect start' first", None
+
+        current = self._get_current_branch()
+
+        # Find commit
+        if commit_ref:
+            commit_idx = None
+            for i, c in enumerate(current.commits):
+                if c.hash.startswith(commit_ref):
+                    commit_idx = i
+                    break
+            if commit_idx is None:
+                return f"error: commit '{commit_ref}' not found", None
+        else:
+            # Use current bisect position or first commit
+            commit_idx = self._bisect_state.get("current_idx", 0)
+
+        self._bisect_state["good"] = commit_idx
+        commit = current.commits[commit_idx]
+
+        # Try to find the divergence point
+        result = self._bisect_step()
+
+        event = self._emit_event("bisect", {
+            "action": "good",
+            "commit": commit.hash,
+        })
+
+        self.command_history.append(f"bisect good {commit.hash[:7]}")
+
+        return f"Marked [{commit.hash[:7]}] as good\n{result}", event
+
+    def bisect_bad(self, commit_ref: str | None = None) -> tuple[str, Event | None]:
+        """Mark a commit as bad (reasoning diverged by this point)."""
+        if not hasattr(self, '_bisect_state') or not self._bisect_state.get("active"):
+            return "error: no bisect session active. Run 'bisect start' first", None
+
+        current = self._get_current_branch()
+
+        # Find commit
+        if commit_ref:
+            commit_idx = None
+            for i, c in enumerate(current.commits):
+                if c.hash.startswith(commit_ref):
+                    commit_idx = i
+                    break
+            if commit_idx is None:
+                return f"error: commit '{commit_ref}' not found", None
+        else:
+            # Use current bisect position or last commit
+            commit_idx = self._bisect_state.get("current_idx", len(current.commits) - 1)
+
+        self._bisect_state["bad"] = commit_idx
+        commit = current.commits[commit_idx]
+
+        # Try to find the divergence point
+        result = self._bisect_step()
+
+        event = self._emit_event("bisect", {
+            "action": "bad",
+            "commit": commit.hash,
+        })
+
+        self.command_history.append(f"bisect bad {commit.hash[:7]}")
+
+        return f"Marked [{commit.hash[:7]}] as bad\n{result}", event
+
+    def _bisect_step(self) -> str:
+        """Perform a bisect step and return status."""
+        good = self._bisect_state.get("good")
+        bad = self._bisect_state.get("bad")
+
+        if good is None or bad is None:
+            remaining = "good" if good is None else "bad"
+            return f"Need to mark a {remaining} commit to continue"
+
+        if good >= bad:
+            return "error: good commit must be before bad commit"
+
+        # Binary search
+        mid = (good + bad) // 2
+
+        if mid == good:
+            # Found the first bad commit
+            current = self._get_current_branch()
+            first_bad = current.commits[bad]
+            self._bisect_state["active"] = False
+
+            return (
+                f"\nBisect complete!\n"
+                f"First bad commit: [{first_bad.hash[:7]}] {first_bad.message}\n"
+                f"The reasoning diverged at this commit."
+            )
+
+        self._bisect_state["current_idx"] = mid
+        current = self._get_current_branch()
+        mid_commit = current.commits[mid]
+
+        return (
+            f"\nBisecting: {bad - good - 1} commits remaining\n"
+            f"Testing: [{mid_commit.hash[:7]}] {mid_commit.message}\n"
+            f"Is this commit good or bad?"
+        )
+
+    def bisect_reset(self) -> tuple[str, Event]:
+        """Reset bisect session."""
+        if hasattr(self, '_bisect_state'):
+            self._bisect_state = {"active": False}
+
+        event = self._emit_event("bisect", {"action": "reset"})
+        self.command_history.append("bisect reset")
+
+        return "Bisect session reset", event
+
+    def reset(self, commit_ref: str | None = None, hard: bool = False) -> tuple[str, Event | None]:
+        """
+        Reset current branch to a previous commit.
+
+        --hard: Also discard working messages
+        """
+        current = self._get_current_branch()
+
+        if not current.commits:
+            return "error: no commits to reset to", None
+
+        if commit_ref:
+            # Find the commit
+            target_idx = None
+            for i, c in enumerate(current.commits):
+                if c.hash.startswith(commit_ref):
+                    target_idx = i
+                    break
+
+            if target_idx is None:
+                return f"error: commit '{commit_ref}' not found", None
+        else:
+            # Reset to previous commit
+            if len(current.commits) < 2:
+                return "error: no previous commit to reset to", None
+            target_idx = len(current.commits) - 2
+
+        # Remove commits after target
+        removed_count = len(current.commits) - target_idx - 1
+        current.commits = current.commits[:target_idx + 1]
+
+        if hard:
+            current.messages = []
+
+        event = self._emit_event("reset", {
+            "target_commit": current.commits[-1].hash,
+            "removed_commits": removed_count,
+            "hard": hard,
+        })
+
+        mode = "--hard" if hard else ""
+        self.command_history.append(f"reset {mode} {commit_ref or 'HEAD~1'}".strip())
+
+        target = current.commits[-1]
+        return (
+            f"Reset to [{target.hash[:7]}] {target.message}\n"
+            f"Removed {removed_count} commit(s)"
+            + ("\nWorking messages cleared" if hard else "")
+        ), event
 
     # =========================================================================
     # Context Building

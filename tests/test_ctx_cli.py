@@ -296,6 +296,194 @@ class TestExecuteCommand:
         assert event is None
 
 
+class TestNewCommands:
+    """Test new Git-like commands: merge, cherry-pick, bisect, reset."""
+
+    def test_parse_merge(self):
+        result = parse_command('merge feature-x -m "Merge feature"')
+        assert result.action == "merge"
+        assert result.args["branch"] == "feature-x"
+        assert result.args["message"] == "Merge feature"
+
+    def test_parse_merge_no_message(self):
+        result = parse_command("merge feature-x")
+        assert result.action == "merge"
+        assert result.args["branch"] == "feature-x"
+        assert result.args["message"] is None
+
+    def test_parse_cherry_pick(self):
+        result = parse_command("cherry-pick abc123")
+        assert result.action == "cherry-pick"
+        assert result.args["commit"] == "abc123"
+
+    def test_parse_bisect_start(self):
+        result = parse_command("bisect start")
+        assert result.action == "bisect"
+        assert result.args["subaction"] == "start"
+
+    def test_parse_bisect_good(self):
+        result = parse_command("bisect good abc123")
+        assert result.action == "bisect"
+        assert result.args["subaction"] == "good"
+        assert result.args["commit"] == "abc123"
+
+    def test_parse_bisect_bad(self):
+        result = parse_command("bisect bad def456")
+        assert result.action == "bisect"
+        assert result.args["subaction"] == "bad"
+        assert result.args["commit"] == "def456"
+
+    def test_parse_reset(self):
+        result = parse_command("reset abc123")
+        assert result.action == "reset"
+        assert result.args["commit"] == "abc123"
+        assert result.args["hard"] is False
+
+    def test_parse_reset_hard(self):
+        result = parse_command("reset --hard abc123")
+        assert result.action == "reset"
+        assert result.args["commit"] == "abc123"
+        assert result.args["hard"] is True
+
+    def test_merge(self):
+        store = ContextStore()
+        # Create commits on main
+        store.add_message(Message(role="user", content="main work"))
+        store.commit("Main commit")
+
+        # Create feature branch with commits
+        store.checkout("feature", "Feature work", create=True)
+        store.add_message(Message(role="user", content="feature work"))
+        store.commit("Feature commit")
+
+        # Go back to main and merge
+        store.checkout("main", "Back to main")
+        result, event = store.merge("feature")
+
+        assert "Merged" in result
+        assert event.type == "merge"
+        assert event.payload["merged_commits"] == 1
+
+    def test_merge_already_up_to_date(self):
+        store = ContextStore()
+        store.add_message(Message(role="user", content="test"))
+        store.commit("Commit")
+
+        # Create branch without commits
+        store.checkout("empty", "Empty branch", create=True)
+        store.checkout("main", "Back")
+
+        result, event = store.merge("empty")
+
+        assert "no commits" in result.lower()
+
+    def test_cherry_pick(self):
+        store = ContextStore()
+        # Create commit on main
+        store.add_message(Message(role="user", content="main"))
+        store.commit("Main commit")
+        main_hash = store.branches["main"].commits[0].hash
+
+        # Create feature branch
+        store.checkout("feature", "Feature", create=True)
+        store.add_message(Message(role="user", content="feature"))
+        store.commit("Feature commit")
+
+        # Cherry-pick from main
+        result, event = store.cherry_pick(main_hash[:7])
+
+        assert "Cherry-picked" in result
+        assert event.type == "cherry-pick"
+        assert len(store.branches["feature"].commits) == 2
+
+    def test_cherry_pick_by_tag(self):
+        store = ContextStore()
+        store.add_message(Message(role="user", content="test"))
+        store.commit("Tagged commit")
+        store.tag("v1", "Version 1")
+
+        store.checkout("feature", "Feature", create=True)
+        result, event = store.cherry_pick("v1")
+
+        assert "Cherry-picked" in result
+
+    def test_reset(self):
+        store = ContextStore()
+        store.add_message(Message(role="user", content="test1"))
+        store.commit("First")
+        store.add_message(Message(role="user", content="test2"))
+        store.commit("Second")
+        store.add_message(Message(role="user", content="test3"))
+        store.commit("Third")
+
+        first_hash = store.branches["main"].commits[0].hash
+
+        result, event = store.reset(first_hash[:7])
+
+        assert "Reset to" in result
+        assert len(store.branches["main"].commits) == 1
+        assert event.payload["removed_commits"] == 2
+
+    def test_reset_hard(self):
+        store = ContextStore()
+        store.add_message(Message(role="user", content="test1"))
+        store.commit("First")
+        store.add_message(Message(role="user", content="working"))
+
+        first_hash = store.branches["main"].commits[0].hash
+
+        result, event = store.reset(first_hash[:7], hard=True)
+
+        assert "Working messages cleared" in result
+        assert len(store.branches["main"].messages) == 0
+
+    def test_bisect_start(self):
+        store = ContextStore()
+        store.add_message(Message(role="user", content="test1"))
+        store.commit("First")
+        store.add_message(Message(role="user", content="test2"))
+        store.commit("Second")
+
+        result, event = store.bisect_start()
+
+        assert "Bisect started" in result
+        assert event.type == "bisect"
+
+    def test_bisect_flow(self):
+        store = ContextStore()
+
+        # Create 4 commits
+        for i in range(4):
+            store.add_message(Message(role="user", content=f"test{i}"))
+            store.commit(f"Commit {i}")
+
+        # Start bisect
+        store.bisect_start()
+
+        # Mark first as good
+        first_hash = store.branches["main"].commits[0].hash
+        result, _ = store.bisect_good(first_hash[:7])
+        assert "good" in result.lower()
+
+        # Mark last as bad
+        last_hash = store.branches["main"].commits[-1].hash
+        result, _ = store.bisect_bad(last_hash[:7])
+        assert "bad" in result.lower() or "Testing" in result
+
+    def test_bisect_reset(self):
+        store = ContextStore()
+        store.add_message(Message(role="user", content="test"))
+        store.commit("First")
+        store.add_message(Message(role="user", content="test2"))
+        store.commit("Second")
+
+        store.bisect_start()
+        result, event = store.bisect_reset()
+
+        assert "reset" in result.lower()
+        assert event.type == "bisect"
+
+
 class TestSerialization:
     """Test save/load functionality."""
 
@@ -318,3 +506,87 @@ class TestSerialization:
         assert "feature" in loaded.branches
         assert "v1" in loaded.tags
         assert len(loaded.branches["main"].commits) == 1
+
+
+class TestPolicies:
+    """Test policy engine."""
+
+    def test_max_messages_policy(self):
+        from policies import MaxMessagesPolicy, PolicyAction
+
+        policy = MaxMessagesPolicy(max_messages=5, warn_at=3)
+        store = ContextStore()
+
+        # Add 2 messages - should not trigger
+        store.add_message(Message(role="user", content="1"))
+        store.add_message(Message(role="user", content="2"))
+        result = policy.evaluate(store)
+        assert not result.triggered
+
+        # Add 2 more - should warn
+        store.add_message(Message(role="user", content="3"))
+        store.add_message(Message(role="user", content="4"))
+        result = policy.evaluate(store)
+        assert result.triggered
+        assert result.action == PolicyAction.WARN
+
+        # Add 2 more - should suggest commit
+        store.add_message(Message(role="user", content="5"))
+        store.add_message(Message(role="user", content="6"))
+        result = policy.evaluate(store)
+        assert result.triggered
+        assert result.action == PolicyAction.SUGGEST_COMMIT
+
+    def test_policy_engine(self):
+        from policies import PolicyEngine
+
+        engine = PolicyEngine()
+        store = ContextStore()
+
+        # Initially no triggers
+        results = engine.evaluate(store)
+        assert len(results) == 0
+
+        # Add many messages
+        for i in range(25):
+            store.add_message(Message(role="user", content=f"msg{i}"))
+
+        results = engine.evaluate(store)
+        assert len(results) > 0
+
+
+class TestTokens:
+    """Test token counting utilities."""
+
+    def test_estimate_tokens(self):
+        from tokens import estimate_tokens
+
+        text = "Hello, world!"  # ~3 tokens
+        estimate = estimate_tokens(text)
+        assert estimate >= 1
+
+    def test_token_tracker(self):
+        from tokens import TokenTracker
+
+        tracker = TokenTracker(model="gpt-4o")
+
+        assert tracker.context_limit == 128000
+        assert tracker.current_context_tokens == 0
+
+        # Count some text
+        count = tracker.count("Hello, world! This is a test.")
+        assert count > 0
+
+    def test_count_message_tokens(self):
+        from tokens import count_message_tokens
+
+        msg = {"role": "user", "content": "Hello, how are you?"}
+        count = count_message_tokens(msg)
+        assert count > 0
+
+    def test_get_model_context_limit(self):
+        from tokens import get_model_context_limit
+
+        assert get_model_context_limit("gpt-4o") == 128000
+        assert get_model_context_limit("gpt-4") == 8192
+        assert get_model_context_limit("unknown-model") == 128000

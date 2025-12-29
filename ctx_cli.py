@@ -48,6 +48,30 @@ COMMANDS:
     WHEN TO USE: After user approval, major milestones, stable states.
     Example: ctx_cli tag v1-approved -m "User approved the architecture"
 
+  merge <branch> [-m "<message>"]
+    Merge commits from another branch into current branch.
+    WHEN TO USE: After completing work on a feature branch, merge back to main.
+    Example: ctx_cli merge feature-auth -m "Completed auth implementation"
+
+  cherry-pick <commit>
+    Apply a specific commit from any branch to current branch.
+    commit can be a hash prefix or tag name.
+    WHEN TO USE: When you need a specific insight from another branch.
+    Example: ctx_cli cherry-pick abc123
+
+  bisect start|good|bad|reset
+    Find where reasoning diverged using binary search.
+    WHEN TO USE: Debug when the agent started making wrong decisions.
+    Example: ctx_cli bisect start
+    Example: ctx_cli bisect good abc123
+    Example: ctx_cli bisect bad def456
+
+  reset [commit] [--hard]
+    Reset branch to a previous commit.
+    --hard also clears working messages.
+    WHEN TO USE: Abandon a failed line of reasoning.
+    Example: ctx_cli reset abc123 --hard
+
   log
     Show commit history for current branch.
 
@@ -75,7 +99,9 @@ WORKFLOW:
 2. When subtask complete, commit with a meaningful message
 3. For new tasks, checkout a new branch with a transition note
 4. Tag important milestones (user approvals, stable states)
-5. Use stash when interrupted mid-task""",
+5. Use stash when interrupted mid-task
+6. Merge completed branches back to main
+7. Use bisect to debug when reasoning went wrong""",
         "parameters": {
             "type": "object",
             "properties": {
@@ -100,7 +126,8 @@ class ParsedCommand:
 
     action: Literal[
         "commit", "checkout", "branch", "tag", "log",
-        "status", "diff", "history", "stash", "error"
+        "status", "diff", "history", "stash", "merge",
+        "cherry-pick", "bisect", "reset", "error"
     ]
     args: dict
     error: str | None = None
@@ -297,6 +324,95 @@ def parse_command(command: str) -> ParsedCommand:
             error=f"Unknown stash subcommand: {subaction}"
         )
 
+    # -------------------------------------------------------------------------
+    # merge <branch> [-m "message"]
+    # -------------------------------------------------------------------------
+    if action == "merge":
+        if len(tokens) < 2:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="merge requires a branch name"
+            )
+
+        branch = tokens[1]
+        message = None
+        i = 2
+
+        while i < len(tokens):
+            if tokens[i] == "-m" and i + 1 < len(tokens):
+                message = tokens[i + 1]
+                i += 2
+            else:
+                i += 1
+
+        return ParsedCommand(action="merge", args={"branch": branch, "message": message})
+
+    # -------------------------------------------------------------------------
+    # cherry-pick <commit>
+    # -------------------------------------------------------------------------
+    if action == "cherry-pick":
+        if len(tokens) < 2:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="cherry-pick requires a commit hash or tag"
+            )
+        return ParsedCommand(action="cherry-pick", args={"commit": tokens[1]})
+
+    # -------------------------------------------------------------------------
+    # bisect start|good|bad|reset
+    # -------------------------------------------------------------------------
+    if action == "bisect":
+        if len(tokens) < 2:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="bisect requires subcommand: start, good, bad, or reset"
+            )
+
+        subaction = tokens[1].lower()
+
+        if subaction == "start":
+            return ParsedCommand(action="bisect", args={"subaction": "start"})
+
+        if subaction == "good":
+            commit = tokens[2] if len(tokens) > 2 else None
+            return ParsedCommand(action="bisect", args={"subaction": "good", "commit": commit})
+
+        if subaction == "bad":
+            commit = tokens[2] if len(tokens) > 2 else None
+            return ParsedCommand(action="bisect", args={"subaction": "bad", "commit": commit})
+
+        if subaction == "reset":
+            return ParsedCommand(action="bisect", args={"subaction": "reset"})
+
+        return ParsedCommand(
+            action="error",
+            args={},
+            error=f"Unknown bisect subcommand: {subaction}"
+        )
+
+    # -------------------------------------------------------------------------
+    # reset [commit] [--hard]
+    # -------------------------------------------------------------------------
+    if action == "reset":
+        commit = None
+        hard = False
+        i = 1
+
+        while i < len(tokens):
+            if tokens[i] == "--hard":
+                hard = True
+                i += 1
+            elif not commit and not tokens[i].startswith("-"):
+                commit = tokens[i]
+                i += 1
+            else:
+                i += 1
+
+        return ParsedCommand(action="reset", args={"commit": commit, "hard": hard})
+
     return ParsedCommand(
         action="error",
         args={},
@@ -356,5 +472,25 @@ def execute_command(store: ContextStore, command: str) -> tuple[str, Event | Non
             return store.stash_pop(parsed.args.get("stash_id"))
         if subaction == "list":
             return store.stash_list()
+
+    if parsed.action == "merge":
+        return store.merge(parsed.args["branch"], parsed.args.get("message"))
+
+    if parsed.action == "cherry-pick":
+        return store.cherry_pick(parsed.args["commit"])
+
+    if parsed.action == "bisect":
+        subaction = parsed.args["subaction"]
+        if subaction == "start":
+            return store.bisect_start()
+        if subaction == "good":
+            return store.bisect_good(parsed.args.get("commit"))
+        if subaction == "bad":
+            return store.bisect_bad(parsed.args.get("commit"))
+        if subaction == "reset":
+            return store.bisect_reset()
+
+    if parsed.action == "reset":
+        return store.reset(parsed.args.get("commit"), parsed.args.get("hard", False))
 
     return f"Unknown action: {parsed.action}", None
