@@ -1,0 +1,361 @@
+"""
+Knowledge Retention Demo: Cross-project memory.
+
+Scenario:
+- Project A: Build a User model with validation
+- Project B (NEW PROJECT): Build a Product model with similar patterns
+
+LINEAR: Project B starts from scratch - no memory of how Project A was built
+BRANCH: Project B can query commits from Project A to recall patterns/decisions
+
+This demonstrates episodic memory across different projects.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+from openai import OpenAI
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from ctx_cli import CTX_CLI_TOOL, PLAN_TOOL, execute_command
+from ctx_store import ContextStore, Message
+from tokens import TokenTracker
+
+# =============================================================================
+# Tools
+# =============================================================================
+
+READ_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "read_file",
+        "description": "Read a file's contents.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path"}
+            },
+            "required": ["path"]
+        }
+    }
+}
+
+WRITE_FILE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "write_file",
+        "description": "Write content to a file.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "File path"},
+                "content": {"type": "string", "description": "Content to write"}
+            },
+            "required": ["path", "content"]
+        }
+    }
+}
+
+
+def execute_tool(tool_name: str, args: dict, workdir: str) -> str:
+    """Execute a tool."""
+    try:
+        if tool_name == "read_file":
+            path = os.path.join(workdir, args["path"])
+            if os.path.exists(path):
+                with open(path) as f:
+                    return f.read()[:3000]
+            return f"Error: File not found: {args['path']}"
+
+        elif tool_name == "write_file":
+            path = os.path.join(workdir, args["path"])
+            os.makedirs(os.path.dirname(path), exist_ok=True) if os.path.dirname(path) else None
+            with open(path, "w") as f:
+                f.write(args["content"])
+            return f"Written {len(args['content'])} bytes to {args['path']}"
+
+        elif tool_name == "plan":
+            return "Plan recorded. Proceed with your next action."
+
+        return f"Unknown tool: {tool_name}"
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+# =============================================================================
+# Tasks
+# =============================================================================
+
+PROJECT_A_TASK = """Create a User model in models/user.py with:
+- User dataclass with: id (str), email (str), name (str), password_hash (str), created_at (datetime), is_active (bool)
+- Email validation method (must contain @)
+- Password validation (min 8 chars)
+- is_valid() method that checks all validations
+- to_dict() method for serialization
+
+Make sure to include proper imports and docstrings.
+Read the file back to confirm."""
+
+PROJECT_B_TASK_LINEAR = """Create a Product model in models/product.py with:
+- Product dataclass with: id (str), name (str), price (float), stock (int), created_at (datetime), is_available (bool)
+- Price validation (must be positive)
+- Stock validation (must be >= 0)
+- is_valid() method that checks all validations
+- to_dict() method for serialization
+
+Use similar patterns to what you would use for a User model.
+Read the file back to confirm."""
+
+PROJECT_B_TASK_BRANCH = """Create a Product model in models/product.py with:
+- Product dataclass with: id (str), name (str), price (float), stock (int), created_at (datetime), is_available (bool)
+- Price validation (must be positive)
+- Stock validation (must be >= 0)
+- is_valid() method that checks all validations
+- to_dict() method for serialization
+
+IMPORTANT: Before starting, use ctx_cli log project-a to recall how you built the User model.
+Apply the same patterns and structure you used there."""
+
+SYSTEM_PROMPT_LINEAR = """You are a software developer.
+
+Tools: read_file, write_file
+
+Complete the task thoroughly."""
+
+SYSTEM_PROMPT_BRANCH = '''You are a software developer with episodic memory via ctx_cli.
+
+Tools: read_file, write_file, plan, ctx_cli
+
+## Your Memory System
+
+You have commits from past projects that store your learnings:
+- ctx_cli log <branch>: Recall what you built and learned in that project
+- ctx_cli branch: List all your past project branches
+
+Before starting a new project that's similar to past work:
+1. Use ctx_cli log <branch> to recall your past decisions and patterns
+2. Apply those learnings to the new project
+
+## Workflow
+
+1. Check if there's relevant past work: ctx_cli branch or ctx_cli log <branch>
+2. Plan your approach based on past learnings
+3. ctx_cli checkout -b <project> -m "Starting: description"
+4. Do the work
+5. ctx_cli commit -m "Detailed: what was built, patterns used, key decisions"
+'''
+
+
+def run_task(
+    task: str,
+    task_name: str,
+    system_prompt: str,
+    tools: list[dict],
+    workdir: str,
+    store: ContextStore | None = None,
+) -> tuple[dict, ContextStore | None]:
+    """Run a single task."""
+    client = OpenAI()
+    tracker = TokenTracker(model="gpt-4.1-mini")
+    peak_input = 0
+
+    if store:
+        store.add_message(Message(role="user", content=task))
+        messages = store.get_context(system_prompt)
+    else:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task},
+        ]
+
+    max_iterations = 20
+    iteration = 0
+
+    print(f"\n{'='*60}")
+    print(f"{task_name}")
+    print(f"{'='*60}")
+
+    while iteration < max_iterations:
+        iteration += 1
+
+        input_tokens = tracker.update_context(messages)
+        tracker.add_input(input_tokens)
+        peak_input = max(peak_input, input_tokens)
+
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=messages,
+            tools=tools,
+            tool_choice="auto",
+        )
+
+        msg = response.choices[0].message
+        if response.usage:
+            tracker.add_output(response.usage.completion_tokens)
+
+        if store:
+            store.add_message(Message(
+                role="assistant",
+                content=msg.content or "",
+                tool_calls=[{
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+                } for tc in (msg.tool_calls or [])]
+            ))
+        else:
+            messages.append({
+                "role": "assistant",
+                "content": msg.content,
+                "tool_calls": [
+                    {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                    for tc in (msg.tool_calls or [])
+                ] if msg.tool_calls else None
+            })
+
+        if msg.tool_calls:
+            for tc in msg.tool_calls:
+                name = tc.function.name
+                args = json.loads(tc.function.arguments)
+
+                if name == "ctx_cli" and store:
+                    result, _ = execute_command(store, args.get("command", ""))
+                else:
+                    result = execute_tool(name, args, workdir)
+
+                # Highlight memory access
+                if name == "ctx_cli" and "log" in args.get("command", ""):
+                    print(f"  [{name}] MEMORY ACCESS: {args.get('command', '')}")
+                    print(f"    -> {result[:100]}...")
+                else:
+                    print(f"  [{name}] {str(args)[:40]}... -> {result[:40]}...")
+
+                if store:
+                    store.add_message(Message(
+                        role="tool",
+                        content=result,
+                        tool_call_id=tc.id,
+                    ))
+                else:
+                    messages.append({
+                        "role": "tool",
+                        "content": result,
+                        "tool_call_id": tc.id,
+                    })
+
+            if store:
+                messages = store.get_context(system_prompt)
+        else:
+            print(f"\n  Completed in {iteration} iterations")
+            break
+
+    stats = tracker.get_stats()
+    return {
+        "task": task_name,
+        "iterations": iteration,
+        "total_input": stats["total_input"],
+        "total_output": stats["total_output"],
+        "peak_input": peak_input,
+    }, store
+
+
+def run_comparison():
+    """Run the cross-project comparison."""
+
+    print("\n" + "#"*70)
+    print("# LINEAR APPROACH - No memory between projects")
+    print("#"*70)
+
+    with tempfile.TemporaryDirectory() as project_a_linear:
+        with tempfile.TemporaryDirectory() as project_b_linear:
+
+            # Project A
+            linear_a, _ = run_task(
+                task=PROJECT_A_TASK,
+                task_name="PROJECT A: User Model (Linear)",
+                system_prompt=SYSTEM_PROMPT_LINEAR,
+                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL],
+                workdir=project_a_linear,
+            )
+
+            print("\n" + "-"*40)
+            print("Starting NEW PROJECT (no memory of Project A)")
+            print("-"*40)
+
+            # Project B - completely fresh, different directory
+            linear_b, _ = run_task(
+                task=PROJECT_B_TASK_LINEAR,
+                task_name="PROJECT B: Product Model (Linear - no memory)",
+                system_prompt=SYSTEM_PROMPT_LINEAR,
+                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL],
+                workdir=project_b_linear,
+            )
+
+    print("\n" + "#"*70)
+    print("# BRANCH APPROACH - Episodic memory across projects")
+    print("#"*70)
+
+    with tempfile.TemporaryDirectory() as project_a_branch:
+        with tempfile.TemporaryDirectory() as project_b_branch:
+
+            store = ContextStore()
+
+            # Project A - with commits
+            branch_a, store = run_task(
+                task=PROJECT_A_TASK,
+                task_name="PROJECT A: User Model (Branch)",
+                system_prompt=SYSTEM_PROMPT_BRANCH,
+                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, PLAN_TOOL, CTX_CLI_TOOL],
+                workdir=project_a_branch,
+                store=store,
+            )
+
+            print("\n" + "-"*40)
+            print("Starting NEW PROJECT (but can access memory from Project A)")
+            print("-"*40)
+
+            # Clear working messages but KEEP commits
+            for branch in store.branches.values():
+                branch.messages = []
+
+            # Switch back to main for new project
+            store.current_branch = "main"
+
+            # Project B - new directory but has access to commits
+            branch_b, _ = run_task(
+                task=PROJECT_B_TASK_BRANCH,
+                task_name="PROJECT B: Product Model (Branch - with memory)",
+                system_prompt=SYSTEM_PROMPT_BRANCH,
+                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, PLAN_TOOL, CTX_CLI_TOOL],
+                workdir=project_b_branch,
+                store=store,
+            )
+
+    # Results
+    print("\n" + "="*70)
+    print("RESULTS")
+    print("="*70)
+
+    print(f"\n{'Metric':<40} {'LINEAR':>12} {'BRANCH':>12}")
+    print("-"*65)
+    print(f"{'Project A - Input Tokens':<40} {linear_a['total_input']:>12,} {branch_a['total_input']:>12,}")
+    print(f"{'Project B - Input Tokens':<40} {linear_b['total_input']:>12,} {branch_b['total_input']:>12,}")
+    print(f"{'TOTAL Input Tokens':<40} {linear_a['total_input']+linear_b['total_input']:>12,} {branch_a['total_input']+branch_b['total_input']:>12,}")
+    print(f"{'Project A - Iterations':<40} {linear_a['iterations']:>12} {branch_a['iterations']:>12}")
+    print(f"{'Project B - Iterations':<40} {linear_b['iterations']:>12} {branch_b['iterations']:>12}")
+
+    print("\n" + "="*70)
+    print("KEY OBSERVATION:")
+    print("Watch for 'MEMORY ACCESS' in Branch approach - the agent recalls")
+    print("how it built Project A before starting Project B.")
+    print("="*70)
+
+
+if __name__ == "__main__":
+    run_comparison()

@@ -72,8 +72,11 @@ COMMANDS:
     WHEN TO USE: Abandon a failed line of reasoning.
     Example: ctx_cli reset abc123 --hard
 
-  log
-    Show commit history for current branch.
+  log [branch]
+    Show commit history. Use to review what was done in any branch.
+    WHEN TO USE: Before starting work, review what was accomplished in previous branches.
+    Example: ctx_cli log           # current branch
+    Example: ctx_cli log step-1    # see what was done in step-1
 
   status
     Show current branch, working messages count, last commit.
@@ -114,6 +117,64 @@ WORKFLOW:
         }
     }
 }
+
+
+# =============================================================================
+# Plan Tool - Forces agent to think before acting
+# =============================================================================
+
+PLAN_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "plan",
+        "description": """Write a plan before starting work. ALWAYS use this before checkout.
+
+WHEN TO USE:
+- Before starting any new task or step
+- Before creating a new branch
+- When you receive a multi-step instruction
+
+WHAT TO INCLUDE:
+1. What you understand from the task
+2. What you'll create or modify
+3. Dependencies on previous work (if any)
+4. What you'll name your branch
+
+Example:
+plan(content="Task: Create TaskRepository for JSON persistence.
+
+Understanding:
+- Need to create repositories/task_repository.py
+- Must use the Task model from step-1
+
+Approach:
+1. Read models/task.py to understand Task structure
+2. Create TaskRepository with save/get/list_all/update/delete
+3. Use atomic writes (temp file + rename)
+
+Branch: step-2-task-repository")
+
+After planning, you can proceed with ctx_cli checkout -b <branch> -m "<summary>"
+""",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "Your plan describing what you'll do and how"
+                }
+            },
+            "required": ["content"]
+        }
+    }
+}
+
+
+def execute_plan(content: str) -> str:
+    """Execute plan tool - simply acknowledges the plan."""
+    # Count lines to give feedback
+    lines = [l for l in content.strip().split('\n') if l.strip()]
+    return f"Plan recorded ({len(lines)} items). You may now proceed with ctx_cli checkout."
 
 
 # =============================================================================
@@ -258,10 +319,11 @@ def parse_command(command: str) -> ParsedCommand:
         return ParsedCommand(action="tag", args={"name": name, "description": description})
 
     # -------------------------------------------------------------------------
-    # log
+    # log [branch]
     # -------------------------------------------------------------------------
     if action == "log":
-        return ParsedCommand(action="log", args={})
+        branch_name = tokens[1] if len(tokens) > 1 else None
+        return ParsedCommand(action="log", args={"branch": branch_name})
 
     # -------------------------------------------------------------------------
     # status
@@ -453,7 +515,7 @@ def execute_command(store: ContextStore, command: str) -> tuple[str, Event | Non
         return store.tag(parsed.args["name"], parsed.args["description"])
 
     if parsed.action == "log":
-        return store.log()
+        return store.log(branch_name=parsed.args.get("branch"))
 
     if parsed.action == "status":
         return store.status()

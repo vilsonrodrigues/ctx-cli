@@ -170,12 +170,6 @@ class Branch:
         if system_prompt:
             result.append({"role": "system", "content": system_prompt})
 
-        # Add head note if exists (from checkout transition)
-        if self.head_note:
-            result.append({
-                "role": "system",
-                "content": f"[TRANSITION NOTE] {self.head_note}"
-            })
 
         # Add commit summaries as context
         if self.commits:
@@ -410,10 +404,29 @@ class ContextStore:
         # Create branch if needed
         if branch_name not in self.branches:
             if create:
-                new_branch = Branch(name=branch_name)
+                # New branches ALWAYS inherit from main (not current branch)
+                # This ensures clean context: main accumulates summaries,
+                # feature branches get fresh start with all knowledge
+                main_branch = self.branches.get("main", source_branch)
+                inherited_messages = [
+                    Message(
+                        role=m.role,
+                        content=m.content,
+                        tool_calls=m.tool_calls.copy() if m.tool_calls else None,
+                        tool_call_id=m.tool_call_id,
+                    )
+                    for m in main_branch.messages
+                ]
+                new_branch = Branch(
+                    name=branch_name,
+                    messages=inherited_messages,
+                )
                 self.branches[branch_name] = new_branch
             else:
                 return f"error: branch '{branch_name}' does not exist. Use -b to create.", None
+        elif create:
+            # Trying to create a branch that already exists
+            return f"error: branch '{branch_name}' already exists. Use checkout without -b to switch.", None
 
         # Switch branch
         self.current_branch = branch_name
@@ -450,7 +463,17 @@ class ContextStore:
                     if msg.tool_call_id not in existing_tool_ids:
                         target_branch.messages.append(msg)
 
-        # Set the transition note as HEAD
+        # Add transition note as assistant message to target branch
+        # This captures what the agent "said" when making the transition
+        if not create:
+            # Checking out to existing branch: add transition summary
+            transition_msg = Message(
+                role="assistant",
+                content=f"[Returning from {from_branch}] {note}"
+            )
+            target_branch.messages.append(transition_msg)
+
+        # Store head_note for reference (but not shown in context)
         target_branch.head_note = f"[From {from_branch}] {note}"
 
         # Emit event
@@ -523,14 +546,25 @@ class ContextStore:
 
         return f"Created tag '{name}' at {commit_hash[:7]}", event
 
-    def log(self, limit: int = 10) -> tuple[str, Event]:
-        """Show commit history for current branch."""
-        branch = self._get_current_branch()
+    def log(self, branch_name: str | None = None, limit: int = 10) -> tuple[str, Event]:
+        """Show commit history for a branch (default: current branch).
+
+        Use this to review what was done in any branch without switching to it.
+        Example: ctx_cli log step-1  # See commits from step-1 branch
+        """
+        if branch_name:
+            if branch_name not in self.branches:
+                return f"error: branch '{branch_name}' not found.", self._emit_event("log", {"error": "branch not found"})
+            branch = self.branches[branch_name]
+            display_name = branch_name
+        else:
+            branch = self._get_current_branch()
+            display_name = self.current_branch
 
         if not branch.commits:
-            return "No commits yet.", self._emit_event("log", {"commits": []})
+            return f"No commits on '{display_name}' yet.", self._emit_event("log", {"commits": []})
 
-        lines = [f"Commit history for '{self.current_branch}':\n"]
+        lines = [f"Commit history for '{display_name}':\n"]
 
         for commit in reversed(branch.commits[-limit:]):
             # Check if this commit has a tag
@@ -540,9 +574,10 @@ class ContextStore:
             lines.append(f"  [{commit.hash[:7]}]{tag_str} {commit.message}")
             lines.append(f"    {commit.timestamp}")
 
-        self.command_history.append("log")
+        self.command_history.append(f"log {branch_name or ''}")
 
         return "\n".join(lines), self._emit_event("log", {
+            "branch": display_name,
             "commits": [c.to_dict() for c in branch.commits[-limit:]]
         })
 
@@ -1074,8 +1109,21 @@ class ContextStore:
         """Add a message to current branch's working memory."""
         self._get_current_branch().add_message(message)
 
+    def remove_last_messages(self, n: int) -> None:
+        """Remove the last n messages from current branch."""
+        branch = self._get_current_branch()
+        if n > 0 and len(branch.messages) >= n:
+            branch.messages = branch.messages[:-n]
+
+    def set_plan(self, plan: str) -> None:
+        """Set the current plan (will be appended to system prompt)."""
+        self.current_plan = plan
+
     def get_context(self, system_prompt: str | None = None) -> list[dict]:
         """Get the current context for API call."""
+        # Append current plan to system prompt if exists
+        if system_prompt and hasattr(self, 'current_plan') and self.current_plan:
+            system_prompt = f"{system_prompt}\n\n## Current Plan\n{self.current_plan}"
         return self._get_current_branch().get_messages_for_api(system_prompt)
 
     def get_token_estimate(self) -> int:
