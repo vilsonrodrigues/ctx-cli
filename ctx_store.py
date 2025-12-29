@@ -290,18 +290,26 @@ class ContextStore:
         Switch to another branch with a mandatory transition note.
         The note becomes the HEAD of the new branch's context.
 
-        When creating a new branch, pending messages are carried over to maintain
-        tool call continuity.
+        Always carries over pending tool_calls chain to maintain API compatibility.
         """
         from_branch = self.current_branch
         source_branch = self._get_current_branch()
+
+        # Find pending tool_calls chain to preserve
+        pending_messages = []
+        for msg in reversed(source_branch.messages):
+            if msg.role == "tool":
+                pending_messages.insert(0, msg)
+            elif msg.role == "assistant" and msg.tool_calls:
+                pending_messages.insert(0, msg)
+                break
+            else:
+                break
 
         # Create branch if needed
         if branch_name not in self.branches:
             if create:
                 new_branch = Branch(name=branch_name)
-                # Carry over pending messages to maintain tool call continuity
-                new_branch.messages = list(source_branch.messages)
                 self.branches[branch_name] = new_branch
             else:
                 return f"error: branch '{branch_name}' does not exist. Use -b to create.", None
@@ -309,6 +317,18 @@ class ContextStore:
         # Switch branch
         self.current_branch = branch_name
         target_branch = self._get_current_branch()
+
+        # Carry over pending tool_calls chain to target branch
+        # This ensures API compatibility when switching mid-toolcall
+        if pending_messages:
+            # Check if target already has these messages (avoid duplicates)
+            if not target_branch.messages or target_branch.messages[-len(pending_messages):] != pending_messages:
+                # Merge pending messages, avoiding duplicates
+                existing_ids = {getattr(m, 'tool_call_id', None) for m in target_branch.messages if hasattr(m, 'tool_call_id')}
+                for msg in pending_messages:
+                    msg_id = getattr(msg, 'tool_call_id', None)
+                    if msg_id not in existing_ids:
+                        target_branch.messages.append(msg)
 
         # Set the transition note as HEAD
         target_branch.head_note = f"[From {from_branch}] {note}"
@@ -475,7 +495,10 @@ class ContextStore:
         })
 
     def stash_push(self, message: str = "WIP") -> tuple[str, Event]:
-        """Stash current working state."""
+        """Stash current working state.
+
+        Preserves recent tool_calls chain to maintain API compatibility.
+        """
         branch = self._get_current_branch()
 
         if not branch.messages:
@@ -493,7 +516,19 @@ class ContextStore:
         )
 
         self.stash.append(entry)
-        branch.messages = []
+
+        # Clear working messages, but preserve recent tool_calls chain
+        preserved = []
+        for msg in reversed(branch.messages):
+            if msg.role == "tool":
+                preserved.insert(0, msg)
+            elif msg.role == "assistant" and msg.tool_calls:
+                preserved.insert(0, msg)
+                break
+            else:
+                break
+
+        branch.messages = preserved
 
         event = self._emit_event("stash", {
             "message": message,
