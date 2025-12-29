@@ -43,6 +43,8 @@ When context grows too large:
 
 ## Commands
 
+### Basic Commands
+
 | Command | Description |
 |---------|-------------|
 | `commit -m "message"` | Save reasoning, clear working memory |
@@ -56,6 +58,16 @@ When context grows too large:
 | `stash push -m "msg"` | Save work temporarily |
 | `stash pop` | Restore stashed work |
 | `history` | Show recent commands |
+
+### Advanced Commands
+
+| Command | Description |
+|---------|-------------|
+| `merge branch` | Merge commits from another branch |
+| `cherry-pick hash` | Apply specific commit to current branch |
+| `reset hash [--hard]` | Go back to a previous state |
+| `bisect start/good/bad/reset` | Binary search for reasoning errors |
+| `reflog` | Show history of HEAD changes for recovery |
 
 ## Token Economics
 
@@ -105,7 +117,7 @@ context = store.get_context("You are a helpful assistant.")
 ```python
 from agent import ContextManagedAgent
 
-agent = ContextManagedAgent(model="gpt-4o-mini")
+agent = ContextManagedAgent(model="gpt-4.1-mini")
 
 # The model will automatically use ctx_cli to manage its context
 response = agent.run("Build a REST API with CRUD operations for todos")
