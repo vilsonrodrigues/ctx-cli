@@ -1,8 +1,12 @@
 """
-ctx_cli - A Git-like CLI for LLM context management.
+ctx_cli - Task-based CLI for LLM context management.
 
 This module provides the tool definition and command parser for ctx_cli.
-The model uses this tool to manage its own context.
+The model uses this tool to manage its own context/memory.
+
+IMPORTANT: This is NOT git. Commands manage MEMORY, not files.
+- Tasks = isolated memory spaces (like branches, but for your thoughts)
+- Saves = snapshots of what you learned (like commits, but for knowledge)
 """
 
 from __future__ import annotations
@@ -23,94 +27,51 @@ CTX_CLI_TOOL = {
     "type": "function",
     "function": {
         "name": "ctx_cli",
-        "description": """Git-like context management CLI. Use this to manage your working memory and episodic memory.
+        "description": """Task-based context/memory management. NOT git - manages your MEMORY, not files.
 
-COMMANDS:
+IMPORTANT: Files are on DISK. Tasks are in MEMORY. Switching tasks does NOT change files.
 
-  commit -m "<message>"
-    Save current reasoning state. Clears working memory, stores as episodic memory.
-    WHEN TO USE: After completing a subtask, before context gets too large.
-    Example: ctx_cli commit -m "Identified bug in JSON parser, root cause is unescaped quotes"
+CORE COMMANDS:
 
-  checkout <branch> -m "<note>"
-    Switch to another branch. The note explains what you'll do there.
-    Use -b to create a new branch.
-    WHEN TO USE: Starting a new isolated subtask, or returning to previous work.
-    Example: ctx_cli checkout -b fix-parser -m "Going to fix the JSON parser bug"
+  start <task> -m "<note>"
+    Begin a new task. Creates isolated memory space.
+    Example: ctx_cli start step-2-repository -m "Building JSON persistence layer"
 
-  branch [name]
-    List all branches, or create a new one.
-    Example: ctx_cli branch
-    Example: ctx_cli branch feature-auth
+  resume <task> -m "<note>"
+    Continue an existing task.
+    Example: ctx_cli resume step-1 -m "Checking what was done"
 
-  tag <name> [-m "<description>"]
-    Create an immutable marker on current commit. Tags cannot be deleted.
-    WHEN TO USE: After user approval, major milestones, stable states.
-    Example: ctx_cli tag v1-approved -m "User approved the architecture"
+  save -m "<message>"
+    Save your current knowledge to memory. CRITICAL: Write detailed messages!
+    Good saves include: what was built, key decisions, patterns, files, next steps.
+    Example: ctx_cli save -m "COMPLETED: TaskRepository with atomic writes..."
 
-  merge <branch> [-m "<message>"]
-    Merge commits from another branch into current branch.
-    WHEN TO USE: After completing work on a feature branch, merge back to main.
-    Example: ctx_cli merge feature-auth -m "Completed auth implementation"
+  tasks
+    List all your tasks (past work areas).
+    Example: ctx_cli tasks
 
-  cherry-pick <commit>
-    Apply a specific commit from any branch to current branch.
-    commit can be a hash prefix or tag name.
-    WHEN TO USE: When you need a specific insight from another branch.
-    Example: ctx_cli cherry-pick abc123
+  recall [task]
+    Remember what you learned in a task. Use to review past work.
+    Example: ctx_cli recall step-1
+    Example: ctx_cli recall  (current task)
 
-  bisect start|good|bad|reset
-    Find where reasoning diverged using binary search.
-    WHEN TO USE: Debug when the agent started making wrong decisions.
-    Example: ctx_cli bisect start
-    Example: ctx_cli bisect good abc123
-    Example: ctx_cli bisect bad def456
-
-  reset [commit] [--hard]
-    Reset branch to a previous commit.
-    --hard also clears working messages.
-    WHEN TO USE: Abandon a failed line of reasoning.
-    Example: ctx_cli reset abc123 --hard
-
-  log [branch]
-    Show commit history. Use to review what was done in any branch.
-    WHEN TO USE: Before starting work, review what was accomplished in previous branches.
-    Example: ctx_cli log           # current branch
-    Example: ctx_cli log step-1    # see what was done in step-1
-
-  status
-    Show current branch, working messages count, last commit.
-
-  diff <branch>
-    Compare current branch with another branch's commits.
-
-  history
-    Show recent ctx_cli commands you've executed.
-
-  stash push -m "<message>"
-    Save current working state temporarily. Use when interrupted.
-    Example: ctx_cli stash push -m "User asked about something else"
-
-  stash pop [stash_id]
-    Restore stashed state.
-
-  stash list
-    List all stash entries.
+  done -m "<summary>"
+    Mark current task complete and return to main with knowledge transfer.
+    Example: ctx_cli done -m "Completed: Repository pattern implemented..."
 
 WORKFLOW:
-1. Work on a task, accumulating messages in working memory
-2. When subtask complete, commit with a meaningful message
-3. For new tasks, checkout a new branch with a transition note
-4. Tag important milestones (user approvals, stable states)
-5. Use stash when interrupted mid-task
-6. Merge completed branches back to main
-7. Use bisect to debug when reasoning went wrong""",
+1. start <task> -m "what I'll do"
+2. Do the work (read/write files)
+3. save -m "detailed knowledge summary"
+4. done -m "knowledge to carry forward"
+
+REMEMBER: Files persist on disk regardless of task. Don't switch tasks to find files.""",
         "parameters": {
             "type": "object",
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "The full ctx_cli command to execute (e.g., 'commit -m \"message\"', 'checkout -b new-branch -m \"note\"')"
+                    "description": "The ctx_cli command (e.g., 'start step-1 -m \"note\"', 'save -m \"what I learned\"')"
                 }
             },
             "required": ["command"]
@@ -127,34 +88,30 @@ PLAN_TOOL = {
     "type": "function",
     "function": {
         "name": "plan",
-        "description": """Write a plan before starting work. ALWAYS use this before checkout.
+        "description": """Write a plan before starting work. ALWAYS use this before 'ctx_cli start'.
 
 WHEN TO USE:
-- Before starting any new task or step
-- Before creating a new branch
-- When you receive a multi-step instruction
+- Before starting any new task
+- Before creating a new task with 'start'
 
 WHAT TO INCLUDE:
-1. What you understand from the task
-2. What you'll create or modify
-3. Dependencies on previous work (if any)
-4. What you'll name your branch
+1. TASK: What needs to be done
+2. DEPENDENCIES: What previous work this builds on
+3. APPROACH: Steps you'll take
+4. TASK NAME: Name for the new task
 
 Example:
-plan(content="Task: Create TaskRepository for JSON persistence.
+plan(content="TASK: Create TaskRepository for JSON persistence
 
-Understanding:
-- Need to create repositories/task_repository.py
-- Must use the Task model from step-1
+DEPENDENCIES: Task model from step-1
 
-Approach:
+APPROACH:
 1. Read models/task.py to understand Task structure
-2. Create TaskRepository with save/get/list_all/update/delete
+2. Create repositories/task_repository.py with CRUD methods
 3. Use atomic writes (temp file + rename)
+4. Verify by reading the file back
 
-Branch: step-2-task-repository")
-
-After planning, you can proceed with ctx_cli checkout -b <branch> -m "<summary>"
+TASK NAME: step-2-repository")
 """,
         "parameters": {
             "type": "object",
@@ -172,9 +129,8 @@ After planning, you can proceed with ctx_cli checkout -b <branch> -m "<summary>"
 
 def execute_plan(content: str) -> str:
     """Execute plan tool - simply acknowledges the plan."""
-    # Count lines to give feedback
     lines = [l for l in content.strip().split('\n') if l.strip()]
-    return f"Plan recorded ({len(lines)} items). You may now proceed with ctx_cli checkout."
+    return f"Plan recorded ({len(lines)} items). Now proceed with: ctx_cli start <task-name> -m \"<note>\""
 
 
 # =============================================================================
@@ -186,9 +142,12 @@ class ParsedCommand:
     """Result of parsing a ctx_cli command."""
 
     action: Literal[
-        "commit", "checkout", "branch", "tag", "log",
+        "start", "resume", "save", "tasks", "recall", "done",
         "status", "diff", "history", "stash", "merge",
-        "cherry-pick", "bisect", "reset", "error"
+        "cherry-pick", "bisect", "reset", "tag",
+        # Legacy aliases for backwards compatibility
+        "commit", "checkout", "branch", "log",
+        "error"
     ]
     args: dict
     error: str | None = None
@@ -198,23 +157,22 @@ def parse_command(command: str) -> ParsedCommand:
     """
     Parse a ctx_cli command string into structured form.
 
-    Examples:
-        commit -m "my message"
-        checkout -b new-branch -m "going to work on X"
-        checkout existing-branch -m "switching back"
-        branch
-        branch new-name
-        tag v1 -m "description"
-        log
-        status
-        diff other-branch
-        history
-        stash push -m "wip"
-        stash pop
-        stash list
+    New commands:
+        start <task> -m "note"     -> create new task
+        resume <task> -m "note"    -> continue existing task
+        save -m "message"          -> save knowledge
+        tasks                      -> list all tasks
+        recall [task]              -> remember past work
+        done -m "summary"          -> complete task, return to main
+
+    Legacy aliases (for backwards compatibility):
+        checkout -b <branch> -m    -> start
+        checkout <branch> -m       -> resume
+        commit -m                  -> save
+        branch                     -> tasks
+        log                        -> recall
     """
     try:
-        # Use shlex to properly handle quoted strings
         tokens = shlex.split(command.strip())
     except ValueError as e:
         return ParsedCommand(action="error", args={}, error=f"Parse error: {e}")
@@ -225,7 +183,148 @@ def parse_command(command: str) -> ParsedCommand:
     action = tokens[0].lower()
 
     # -------------------------------------------------------------------------
-    # commit -m "message"
+    # start <task> -m "note" - Begin new task
+    # -------------------------------------------------------------------------
+    if action == "start":
+        task_name = None
+        note = None
+        i = 1
+
+        while i < len(tokens):
+            if tokens[i] == "-m" and i + 1 < len(tokens):
+                note = tokens[i + 1]
+                i += 2
+            elif not task_name and not tokens[i].startswith("-"):
+                task_name = tokens[i]
+                i += 1
+            else:
+                i += 1
+
+        if not task_name:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="start requires task name. Example: start step-1 -m \"note\""
+            )
+
+        if not note:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="start requires -m \"note\". Example: start step-1 -m \"what I'll do\""
+            )
+
+        # Map to checkout with create=True
+        return ParsedCommand(
+            action="checkout",
+            args={"branch": task_name, "note": note, "create": True}
+        )
+
+    # -------------------------------------------------------------------------
+    # resume <task> -m "note" - Continue existing task
+    # -------------------------------------------------------------------------
+    if action == "resume":
+        task_name = None
+        note = None
+        i = 1
+
+        while i < len(tokens):
+            if tokens[i] == "-m" and i + 1 < len(tokens):
+                note = tokens[i + 1]
+                i += 2
+            elif not task_name and not tokens[i].startswith("-"):
+                task_name = tokens[i]
+                i += 1
+            else:
+                i += 1
+
+        if not task_name:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="resume requires task name. Example: resume step-1 -m \"note\""
+            )
+
+        if not note:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="resume requires -m \"note\". Example: resume step-1 -m \"continuing work\""
+            )
+
+        # Map to checkout with create=False
+        return ParsedCommand(
+            action="checkout",
+            args={"branch": task_name, "note": note, "create": False}
+        )
+
+    # -------------------------------------------------------------------------
+    # save -m "message" - Save knowledge to memory
+    # -------------------------------------------------------------------------
+    if action == "save":
+        message = None
+        i = 1
+        while i < len(tokens):
+            if tokens[i] == "-m" and i + 1 < len(tokens):
+                message = tokens[i + 1]
+                i += 2
+            else:
+                i += 1
+
+        if not message:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="save requires -m \"message\". Write what you learned!"
+            )
+
+        return ParsedCommand(action="commit", args={"message": message})
+
+    # -------------------------------------------------------------------------
+    # tasks - List all tasks
+    # -------------------------------------------------------------------------
+    if action == "tasks":
+        return ParsedCommand(action="branch", args={"name": None})
+
+    # -------------------------------------------------------------------------
+    # recall [task] - Remember past work
+    # -------------------------------------------------------------------------
+    if action == "recall":
+        task_name = tokens[1] if len(tokens) > 1 else None
+        return ParsedCommand(action="log", args={"branch": task_name})
+
+    # -------------------------------------------------------------------------
+    # done -m "summary" - Complete task and return to main
+    # -------------------------------------------------------------------------
+    if action == "done":
+        summary = None
+        i = 1
+        while i < len(tokens):
+            if tokens[i] == "-m" and i + 1 < len(tokens):
+                summary = tokens[i + 1]
+                i += 2
+            else:
+                i += 1
+
+        if not summary:
+            return ParsedCommand(
+                action="error",
+                args={},
+                error="done requires -m \"summary\". What knowledge to carry forward?"
+            )
+
+        # Map to checkout main with the summary as note
+        return ParsedCommand(
+            action="checkout",
+            args={"branch": "main", "note": summary, "create": False}
+        )
+
+    # =========================================================================
+    # LEGACY COMMANDS (backwards compatibility)
+    # =========================================================================
+
+    # -------------------------------------------------------------------------
+    # commit -m "message" (legacy -> save)
     # -------------------------------------------------------------------------
     if action == "commit":
         message = None
@@ -241,13 +340,13 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="commit requires -m \"message\""
+                error="commit requires -m \"message\". Prefer using 'save -m \"...\"'"
             )
 
         return ParsedCommand(action="commit", args={"message": message})
 
     # -------------------------------------------------------------------------
-    # checkout [-b] <branch> -m "note"
+    # checkout [-b] <branch> -m "note" (legacy -> start/resume)
     # -------------------------------------------------------------------------
     if action == "checkout":
         branch_name = None
@@ -272,14 +371,14 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="checkout requires branch name"
+                error="checkout requires branch name. Prefer 'start' or 'resume'"
             )
 
         if not note:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="checkout requires -m \"note\" (transition note is mandatory)"
+                error="checkout requires -m \"note\". Prefer 'start' or 'resume'"
             )
 
         return ParsedCommand(
@@ -288,11 +387,18 @@ def parse_command(command: str) -> ParsedCommand:
         )
 
     # -------------------------------------------------------------------------
-    # branch [name]
+    # branch [name] (legacy -> tasks)
     # -------------------------------------------------------------------------
     if action == "branch":
         name = tokens[1] if len(tokens) > 1 else None
         return ParsedCommand(action="branch", args={"name": name})
+
+    # -------------------------------------------------------------------------
+    # log [branch] (legacy -> recall)
+    # -------------------------------------------------------------------------
+    if action == "log":
+        branch_name = tokens[1] if len(tokens) > 1 else None
+        return ParsedCommand(action="log", args={"branch": branch_name})
 
     # -------------------------------------------------------------------------
     # tag <name> [-m "description"]
@@ -319,13 +425,6 @@ def parse_command(command: str) -> ParsedCommand:
         return ParsedCommand(action="tag", args={"name": name, "description": description})
 
     # -------------------------------------------------------------------------
-    # log [branch]
-    # -------------------------------------------------------------------------
-    if action == "log":
-        branch_name = tokens[1] if len(tokens) > 1 else None
-        return ParsedCommand(action="log", args={"branch": branch_name})
-
-    # -------------------------------------------------------------------------
     # status
     # -------------------------------------------------------------------------
     if action == "status":
@@ -339,7 +438,7 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="diff requires a branch name to compare"
+                error="diff requires a task name to compare"
             )
         return ParsedCommand(action="diff", args={"branch": tokens[1]})
 
@@ -394,7 +493,7 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="merge requires a branch name"
+                error="merge requires a task name"
             )
 
         branch = tokens[1]
@@ -478,7 +577,7 @@ def parse_command(command: str) -> ParsedCommand:
     return ParsedCommand(
         action="error",
         args={},
-        error=f"Unknown command: {action}"
+        error=f"Unknown command: {action}. Use: start, resume, save, tasks, recall, done"
     )
 
 
