@@ -30,73 +30,73 @@ CTX_CLI_TOOL = {
         "name": "ctx_cli",
         "description": """Semantic context/memory management. Manages your MEMORY, not files.
 
-IMPORTANT: Files are on DISK. Paths are in MEMORY. Switching paths does NOT change files.
+IMPORTANT: Files are on DISK. Scopes are in MEMORY. Switching scopes does NOT change files.
 
-CORE COMMANDS:
+CORE COMMANDS (with git equivalent):
 
-  begin <path> -m "<note>"
-    Begin a new line of reasoning. Creates isolated memory space.
-    Example: ctx_cli begin step-2-repository -m "Building JSON persistence layer"
+  scope <path> -m "<note>"          [≈ git checkout -b]
+    Enter a new scope (line of reasoning). Creates isolated memory space.
+    Example: ctx_cli scope step-2-repository -m "Building JSON persistence layer"
 
-  goto <path> -m "<note>"
-    Switch to an existing path (line of reasoning).
+  goto <path> -m "<note>"           [≈ git checkout]
+    Switch to an existing scope.
     Example: ctx_cli goto step-1 -m "Checking what was done"
 
-  note -m "<message>"
+  note -m "<message>"               [≈ git commit]
     Record what you learned (episodic memory). CRITICAL: Write detailed notes!
     Good notes include: what was built, key decisions, patterns, files, next steps.
     Example: ctx_cli note -m "COMPLETED: TaskRepository with atomic writes..."
 
-  paths
-    List all your paths (lines of reasoning).
+  paths                             [≈ git branch]
+    List all your scopes (lines of reasoning).
     Example: ctx_cli paths
 
-  trace [path]
-    See the history of notes in a path. Use to review past reasoning.
+  trace [path]                      [≈ git log]
+    See the history of notes in a scope. Use to review past reasoning.
     Example: ctx_cli trace step-1
-    Example: ctx_cli trace  (current path)
+    Example: ctx_cli trace  (current scope)
 
-  return -m "<summary>"
-    Complete current path and return to main with knowledge transfer.
-    Example: ctx_cli return -m "Completed: Repository pattern implemented..."
+  finish -m "<summary>"             [≈ git checkout main]
+    Complete current scope and return to main with knowledge transfer.
+    Example: ctx_cli finish -m "Completed: Repository pattern implemented..."
 
-OTHER COMMANDS:
+OTHER COMMANDS (with git equivalent):
 
-  anchor <name> -m "<description>"
+  anchor <name> -m "<description>"  [≈ git tag]
     Create an immutable marker (fixed truth). Cannot be deleted.
     Example: ctx_cli anchor v1-approved -m "User approved the architecture"
 
-  pause -m "<message>"
+  pause -m "<message>"              [≈ git stash]
     Archive current work temporarily (when interrupted).
     Example: ctx_cli pause -m "User asked about something else"
 
-  resume [id]
+  resume [id]                       [≈ git stash pop]
     Resume archived work.
     Example: ctx_cli resume
 
-  delta <path>
-    Compare current path with another path's notes.
+  delta <path>                      [≈ git diff]
+    Compare current scope with another scope's notes.
     Example: ctx_cli delta step-1
 
-  rewind [note-id] [--hard]
+  rewind [note-id] [--hard]         [≈ git reset]
     Go back to a previous note. --hard clears working messages.
     Example: ctx_cli rewind abc123 --hard
 
-  extract <note-id>
-    Apply a specific note from any path to current path.
+  extract <note-id>                 [≈ git cherry-pick]
+    Apply a specific note from any scope to current scope.
     Example: ctx_cli extract abc123
 
-  sync <path> -m "<message>"
-    Bring notes from another path into current path.
+  sync <path> -m "<message>"        [≈ git merge]
+    Bring notes from another scope into current scope.
     Example: ctx_cli sync feature-auth -m "Completed auth implementation"
 
 WORKFLOW:
-1. begin <path> -m "what I'll do"
+1. scope <path> -m "what I'll do"
 2. Do the work (read/write files)
 3. note -m "detailed knowledge summary"
-4. return -m "knowledge to carry forward"
+4. finish -m "knowledge to carry forward"
 
-REMEMBER: Files persist on disk regardless of path. Don't switch paths to find files.""",
+REMEMBER: Files persist on disk regardless of scope. Don't switch scopes to find files.""",
         "parameters": {
             "type": "object",
             "properties": {
@@ -119,11 +119,11 @@ PLAN_TOOL = {
     "type": "function",
     "function": {
         "name": "plan",
-        "description": """Write a plan before starting work. ALWAYS use this before 'ctx_cli begin'.
+        "description": """Write a plan before starting work. ALWAYS use this before 'ctx_cli scope'.
 
 WHEN TO USE:
 - Before starting any new task
-- Before creating a new path with 'begin'
+- Before creating a new scope with 'scope'
 
 WHAT TO INCLUDE:
 1. TASK: What needs to be done
@@ -161,7 +161,7 @@ PATH NAME: step-2-repository")
 def execute_plan(content: str) -> str:
     """Execute plan tool - simply acknowledges the plan."""
     lines = [l for l in content.strip().split('\n') if l.strip()]
-    return f"Plan recorded ({len(lines)} items). Now proceed with: ctx_cli begin <path-name> -m \"<note>\""
+    return f"Plan recorded ({len(lines)} items). Now proceed with: ctx_cli scope <path-name> -m \"<note>\""
 
 
 # =============================================================================
@@ -216,9 +216,9 @@ def parse_command(command: str) -> ParsedCommand:
     action = tokens[0].lower()
 
     # -------------------------------------------------------------------------
-    # begin <path> -m "note" - Start new line of reasoning
+    # scope <path> -m "note" - Enter new scope (line of reasoning)
     # -------------------------------------------------------------------------
-    if action == "begin":
+    if action == "scope":
         path_name = None
         note = None
         i = 1
@@ -237,14 +237,14 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="begin requires path name. Example: begin step-1 -m \"note\""
+                error="scope requires path name. Example: scope step-1 -m \"note\""
             )
 
         if not note:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="begin requires -m \"note\". Example: begin step-1 -m \"what I'll do\""
+                error="scope requires -m \"note\". Example: scope step-1 -m \"what I'll do\""
             )
 
         return ParsedCommand(
@@ -253,7 +253,7 @@ def parse_command(command: str) -> ParsedCommand:
         )
 
     # -------------------------------------------------------------------------
-    # goto <path> -m "note" - Switch to existing path
+    # goto <path> -m "note" - Switch to existing scope
     # -------------------------------------------------------------------------
     if action == "goto":
         path_name = None
@@ -325,9 +325,9 @@ def parse_command(command: str) -> ParsedCommand:
         return ParsedCommand(action="log", args={"branch": path_name})
 
     # -------------------------------------------------------------------------
-    # return -m "summary" - Complete path and return to main
+    # finish -m "summary" - Complete scope and return to main
     # -------------------------------------------------------------------------
-    if action == "return":
+    if action == "finish":
         summary = None
         i = 1
         while i < len(tokens):
@@ -341,7 +341,7 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="return requires -m \"summary\". What knowledge to carry forward?"
+                error="finish requires -m \"summary\". What knowledge to carry forward?"
             )
 
         return ParsedCommand(
@@ -525,8 +525,8 @@ def parse_command(command: str) -> ParsedCommand:
             args={"branch": branch_name, "note": note, "create": create}
         )
 
-    # start -> begin
-    if action == "start":
+    # start/begin -> scope
+    if action in ("start", "begin"):
         path_name = None
         note = None
         i = 1
@@ -545,14 +545,14 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="start requires path name. Prefer 'begin'"
+                error=f"{action} requires path name. Prefer 'scope'"
             )
 
         if not note:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="start requires -m \"note\". Prefer 'begin'"
+                error=f"{action} requires -m \"note\". Prefer 'scope'"
             )
 
         return ParsedCommand(
@@ -560,8 +560,8 @@ def parse_command(command: str) -> ParsedCommand:
             args={"branch": path_name, "note": note, "create": True}
         )
 
-    # done -> return
-    if action == "done":
+    # done/return -> finish
+    if action in ("done", "return"):
         summary = None
         i = 1
         while i < len(tokens):
@@ -575,7 +575,7 @@ def parse_command(command: str) -> ParsedCommand:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="done requires -m \"summary\". Prefer 'return'"
+                error=f"{action} requires -m \"summary\". Prefer 'finish'"
             )
 
         return ParsedCommand(
@@ -721,7 +721,7 @@ def parse_command(command: str) -> ParsedCommand:
     return ParsedCommand(
         action="error",
         args={},
-        error=f"Unknown command: {action}. Use: begin, goto, note, paths, trace, return"
+        error=f"Unknown command: {action}. Use: scope, goto, note, paths, trace, finish"
     )
 
 

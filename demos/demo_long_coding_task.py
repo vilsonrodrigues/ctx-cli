@@ -265,11 +265,11 @@ Without good notes, you LOSE knowledge between tasks.
 
 ## Commands
 
-- `ctx_cli paths`: List all paths (your lines of reasoning)
-- `ctx_cli trace [path]`: See notes from a path (recall what you learned)
-- `ctx_cli begin <name> -m "<note>"`: Begin new path
+- `ctx_cli paths`: List all scopes (your lines of reasoning)
+- `ctx_cli trace [path]`: See notes from a scope (recall what you learned)
+- `ctx_cli scope <name> -m "<note>"`: Enter new scope
 - `ctx_cli note -m "<message>"`: Record episodic memory
-- `ctx_cli return -m "<summary>"`: Complete path and return to main
+- `ctx_cli finish -m "<summary>"`: Complete scope and return to main
 
 # WORKFLOW (MANDATORY)
 
@@ -303,10 +303,10 @@ Read the notes carefully. They contain:
 - Patterns established
 - Files created/modified
 
-## Step 3: BEGIN (start your path)
+## Step 3: SCOPE (enter your scope)
 
 ```
-ctx_cli begin step-2-repository -m "Building JSON persistence layer for Task model"
+ctx_cli scope step-2-repository -m "Building JSON persistence layer for Task model"
 ```
 
 The note should explain WHAT you're about to do.
@@ -374,10 +374,10 @@ NEXT STEPS:
 - TaskService will use this for business logic
 """
 
-## Step 6: RETURN (complete path, transfer knowledge)
+## Step 6: FINISH (complete scope, transfer knowledge)
 
 ```
-ctx_cli return -m """
+ctx_cli finish -m """
 COMPLETED step-2: TaskRepository
 
 KNOWLEDGE TO CARRY FORWARD:
@@ -412,8 +412,8 @@ PATH NAME: step-2-repository
 ctx_cli trace step-1
 -> [abc123] COMPLETED: Task model with validation...
 
-[3. BEGIN]
-ctx_cli begin step-2-repository -m "Building JSON persistence for Task model"
+[3. SCOPE]
+ctx_cli scope step-2-repository -m "Building JSON persistence for Task model"
 
 [4. WORK]
 read_file models/task.py
@@ -440,8 +440,8 @@ FILES:
 - repositories/task_repository.py
 """
 
-[6. RETURN]
-ctx_cli return -m """
+[6. FINISH]
+ctx_cli finish -m """
 COMPLETED step-2: TaskRepository ready
 
 CARRY FORWARD:
@@ -452,16 +452,16 @@ CARRY FORWARD:
 
 # COMMON MISTAKES - DO NOT DO THESE
 
-1. DON'T switch paths to find files
-   - Files are on disk, not in paths
-   - If file not found: CREATE it, don't goto other paths
+1. DON'T switch scopes to find files
+   - Files are on disk, not in scopes
+   - If file not found: CREATE it, don't goto other scopes
 
-2. DON'T begin the same path repeatedly
-   - If path exists and you got an error, use 'goto' instead
-   - If you're already on the path, just work
+2. DON'T scope the same path repeatedly
+   - If scope exists and you got an error, use 'goto' instead
+   - If you're already in the scope, just work
 
 3. DON'T skip the plan tool
-   - Plan FIRST, then begin, then work
+   - Plan FIRST, then scope, then work
 
 4. DON'T write vague notes
    - Bad: "Done with step 2"
