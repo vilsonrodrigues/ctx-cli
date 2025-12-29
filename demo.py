@@ -54,7 +54,7 @@ def run_demo():
             context = store.get_context(DEMO_SYSTEM_PROMPT)
 
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model="gpt-4.1-mini",
                 messages=context,
                 tools=tools,
             )
@@ -62,24 +62,30 @@ def run_demo():
             message = response.choices[0].message
 
             if message.tool_calls:
+                # First, add the assistant message with tool calls
                 store.add_message(Message(
                     role="assistant",
                     content=message.content or "",
                     tool_calls=[tc.model_dump() for tc in message.tool_calls]
                 ))
 
+                # Collect all tool results BEFORE executing any that modify state
+                tool_results = []
                 for tool_call in message.tool_calls:
                     if tool_call.function.name == "ctx_cli":
                         args = json.loads(tool_call.function.arguments)
                         result, event = execute_command(store, args["command"])
                         print(f"  [ctx_cli] {args['command']}")
                         print(f"  [result] {result}")
+                        tool_results.append((tool_call.id, result))
 
-                        store.add_message(Message(
-                            role="tool",
-                            content=result,
-                            tool_call_id=tool_call.id,
-                        ))
+                # Now add all tool responses
+                for tool_id, result in tool_results:
+                    store.add_message(Message(
+                        role="tool",
+                        content=result,
+                        tool_call_id=tool_id,
+                    ))
             else:
                 store.add_message(Message(
                     role="assistant",

@@ -236,6 +236,9 @@ class ContextStore:
         """
         Commit current reasoning state.
         Saves messages as episodic memory and clears working messages.
+
+        Note: Preserves the most recent assistant message if it has pending
+        tool_calls to maintain OpenAI API compatibility.
         """
         branch = self._get_current_branch()
 
@@ -257,8 +260,19 @@ class ContextStore:
 
         branch.commits.append(commit)
 
-        # Clear working messages after commit
-        branch.messages = []
+        # Clear working messages, but preserve recent tool_calls chain
+        # to maintain API compatibility
+        preserved = []
+        for msg in reversed(branch.messages):
+            if msg.role == "tool":
+                preserved.insert(0, msg)
+            elif msg.role == "assistant" and msg.tool_calls:
+                preserved.insert(0, msg)
+                break
+            else:
+                break
+
+        branch.messages = preserved
 
         # Emit event
         event = self._emit_event("commit", {
@@ -275,13 +289,20 @@ class ContextStore:
         """
         Switch to another branch with a mandatory transition note.
         The note becomes the HEAD of the new branch's context.
+
+        When creating a new branch, pending messages are carried over to maintain
+        tool call continuity.
         """
         from_branch = self.current_branch
+        source_branch = self._get_current_branch()
 
         # Create branch if needed
         if branch_name not in self.branches:
             if create:
-                self.branches[branch_name] = Branch(name=branch_name)
+                new_branch = Branch(name=branch_name)
+                # Carry over pending messages to maintain tool call continuity
+                new_branch.messages = list(source_branch.messages)
+                self.branches[branch_name] = new_branch
             else:
                 return f"error: branch '{branch_name}' does not exist. Use -b to create.", None
 
