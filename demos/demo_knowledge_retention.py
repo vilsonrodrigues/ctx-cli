@@ -6,7 +6,7 @@ Scenario:
 - Project B (NEW PROJECT): Build a Product model with similar patterns
 
 LINEAR: Project B starts from scratch - no memory of how Project A was built
-BRANCH: Project B can query commits from Project A to recall patterns/decisions
+SCOPE: Project B can query notes from Project A to recall patterns/decisions
 
 This demonstrates episodic memory across different projects.
 """
@@ -371,7 +371,7 @@ def run_comparison():
             )
 
     print("\n" + "#"*70)
-    print("# BRANCH APPROACH - Episodic memory across projects")
+    print("# SCOPE APPROACH - Episodic memory across projects")
     print("#"*70)
 
     with tempfile.TemporaryDirectory() as project_a_branch:
@@ -379,10 +379,10 @@ def run_comparison():
 
             store = ContextStore()
 
-            # Project A - with commits
+            # Project A - with notes
             branch_a, store = run_task(
                 task=PROJECT_A_TASK,
-                task_name="PROJECT A: User Model (Branch)",
+                task_name="PROJECT A: User Model (Scope)",
                 system_prompt=SYSTEM_PROMPT_BRANCH,
                 tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, CTX_CLI_TOOL],
                 workdir=project_a_branch,
@@ -393,17 +393,17 @@ def run_comparison():
             print("Starting NEW PROJECT (but can access memory from Project A)")
             print("-"*40)
 
-            # Clear working messages but KEEP commits
+            # Clear working messages but KEEP notes
             for branch in store.branches.values():
                 branch.messages = []
 
             # Switch back to main for new project
             store.current_branch = "main"
 
-            # Project B - new directory but has access to commits
+            # Project B - new directory but has access to notes
             branch_b, _ = run_task(
                 task=PROJECT_B_TASK_BRANCH,
-                task_name="PROJECT B: Product Model (Branch - with memory)",
+                task_name="PROJECT B: Product Model (Scope - with memory)",
                 system_prompt=SYSTEM_PROMPT_BRANCH,
                 tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, CTX_CLI_TOOL],
                 workdir=project_b_branch,
@@ -415,7 +415,7 @@ def run_comparison():
     print("RESULTS")
     print("="*70)
 
-    print(f"\n{'Metric':<40} {'LINEAR':>12} {'BRANCH':>12}")
+    print(f"\n{'Metric':<40} {'LINEAR':>12} {'SCOPE':>12}")
     print("-"*65)
     print(f"{'Project A - Input Tokens':<40} {linear_a['total_input']:>12,} {branch_a['total_input']:>12,}")
     print(f"{'Project B - Input Tokens':<40} {linear_b['total_input']:>12,} {branch_b['total_input']:>12,}")
@@ -425,7 +425,7 @@ def run_comparison():
 
     print("\n" + "="*70)
     print("KEY OBSERVATION:")
-    print("Watch for 'MEMORY ACCESS' in Branch approach - the agent recalls")
+    print("Watch for 'MEMORY ACCESS' in Scope approach - the agent recalls")
     print("how it built Project A before starting Project B.")
     print("="*70)
 

@@ -84,7 +84,7 @@ def run_interactive():
 
             # Warn if approaching limit
             if tokens > 50000:
-                print(f"  [!] Context at {tokens:,} tokens - consider committing")
+                print(f"  [!] Context at {tokens:,} tokens - consider taking notes")
 
             response = client.chat.completions.create(
                 model="gpt-4.1-mini",

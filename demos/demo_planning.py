@@ -1,14 +1,13 @@
 """
-Planning Agent Demo: Agent plans a project using branches for alternatives.
+Planning Agent Demo: Agent plans a project using scopes for alternatives.
 
 This demo simulates a planning scenario where:
 1. Agent receives a project to plan
-2. Creates branches for different approaches
+2. Creates scopes for different approaches
 3. Develops each approach in isolation
-4. Uses diff to compare alternatives
-5. Merges the chosen approach
+4. Returns to main with recommendation
 
-Shows how branches enable parallel exploration of alternatives.
+Shows how scopes enable parallel exploration of alternatives.
 """
 
 from __future__ import annotations
@@ -52,7 +51,7 @@ Think of scopes as parallel universes for exploring "what if" scenarios."""
 
 
 def run_planning():
-    """Demonstrate planning with branch alternatives."""
+    """Demonstrate planning with scope alternatives."""
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("Error: Set OPENAI_API_KEY")
@@ -130,10 +129,10 @@ def run_planning():
         return "[Max rounds]"
 
     print("=" * 70)
-    print("PLANNING AGENT DEMO: Exploring Alternatives with Branches")
+    print("PLANNING AGENT DEMO: Exploring Alternatives with Scopes")
     print("=" * 70)
     print("\nSimulating architecture planning with multiple approaches...")
-    print("Watch how branches enable parallel exploration.\n")
+    print("Watch how scopes enable parallel exploration.\n")
 
     # =========================================================================
     # Phase 1: Gather requirements
@@ -148,7 +147,7 @@ def run_planning():
     - Version history
     - Scale to 100 concurrent editors per document
 
-    First, commit the requirements on main, then we'll explore approaches.
+    First, take notes on the requirements, then we'll explore approaches.
     """, label="REQUIREMENTS: Collaborative Editor")
 
     # =========================================================================
@@ -157,19 +156,19 @@ def run_planning():
     chat("""
     Let's explore our first approach: Operational Transformation (OT).
 
-    Create a branch for this approach and analyze:
+    Create a scope for this approach and analyze:
     - How OT works
     - Pros and cons
     - Implementation complexity
     - Scalability considerations
 
-    Commit your analysis.
+    Take notes on your analysis.
     """, label="APPROACH A: Operational Transformation")
 
     chat("""
     For the OT approach, what tech stack would you recommend?
     Consider: server framework, real-time protocol, storage.
-    Commit the tech stack for this approach.
+    Take notes on the tech stack for this approach.
     """, label="APPROACH A: Tech Stack")
 
     # =========================================================================
@@ -178,19 +177,19 @@ def run_planning():
     chat("""
     Now let's explore the alternative: CRDTs (Conflict-free Replicated Data Types).
 
-    Create a new branch from main (not from OT branch) and analyze:
+    Go back to main, then create a new scope (not from OT scope) and analyze:
     - How CRDTs work
     - Pros and cons vs OT
     - Implementation complexity
     - Offline support advantages
 
-    Commit your analysis.
+    Take notes on your analysis.
     """, label="APPROACH B: CRDTs")
 
     chat("""
     For the CRDT approach, what tech stack would you use?
     There are libraries like Yjs, Automerge - consider those.
-    Commit the tech stack for this approach.
+    Take notes on the tech stack for this approach.
     """, label="APPROACH B: Tech Stack")
 
     # =========================================================================
@@ -199,15 +198,15 @@ def run_planning():
     chat("""
     Now let's compare the two approaches.
 
-    Use diff to see the difference between the OT and CRDT branches.
-    Then give me your recommendation: which approach should we choose?
+    Review your notes from both scopes and give me your recommendation:
+    which approach should we choose?
     """, label="COMPARISON: OT vs CRDT")
 
     chat("""
     Based on your analysis, let's go with your recommended approach.
 
-    Merge that branch into main and tag it as our architecture decision.
-    Show me the final branch state and history.
+    Return to main with your final recommendation and take a summary note.
+    Show me the final state and your notes.
     """, label="DECISION: Final Architecture")
 
     # =========================================================================
@@ -217,29 +216,28 @@ def run_planning():
     print("PLANNING SESSION RESULTS")
     print("=" * 70)
 
-    print("\n🌿 Branches Explored:")
+    print("\n🌿 Scopes Explored:")
     result, _ = store.branch()
     for line in result.split("\n"):
         if line.strip():
-            branch_name = line.strip().replace("* ", "→ ").replace("  ", "  ")
-            print(f"  {branch_name}")
+            scope_name = line.strip().replace("* ", "→ ").replace("  ", "  ")
+            print(f"  {scope_name}")
 
-    print("\n📋 Decision Trail (All Commits):")
-    for branch_name, branch in store.branches.items():
-        if branch.commits:
-            print(f"\n  [{branch_name}]")
-            for commit in branch.commits:
-                print(f"    [{commit.hash[:7]}] {commit.message[:50]}...")
+    print("\n📋 Decision Trail (All Notes):")
+    for scope_name, scope in store.branches.items():
+        if scope.commits:
+            print(f"\n  [{scope_name}]")
+            for note in scope.commits:
+                print(f"    [{note.hash[:7]}] {note.message[:50]}...")
 
-    print("\n🔗 Merge Events:")
-    merge_events = [e for e in store.events if e.type == "merge"]
-    if merge_events:
-        for e in merge_events:
-            source = e.payload.get("source_branch", "?")
-            commits = e.payload.get("commits_merged", 0)
-            print(f"  Merged '{source}' ({commits} commits)")
+    print("\n🔀 Scope Transitions:")
+    goto_events = [e for e in store.events if e.type == "checkout"]
+    if goto_events:
+        for e in goto_events[:5]:  # Show first 5
+            target = e.payload.get("branch", "?")
+            print(f"  → {target}")
     else:
-        print("  (no merges yet)")
+        print("  (no transitions)")
 
     print("\n🏷️  Architecture Decision:")
     if store.tags:
@@ -250,14 +248,13 @@ def run_planning():
 
     print("\n📊 Planning Statistics:")
     print(f"  Alternatives explored: {len(store.branches) - 1}")  # Exclude main
-    print(f"  Total commits: {sum(len(b.commits) for b in store.branches.values())}")
-    print(f"  Comparisons (diff): {len([e for e in store.events if e.type == 'diff'])}")
-    print(f"  Final decision merged: {'Yes' if merge_events else 'No'}")
+    print(f"  Total notes: {sum(len(s.commits) for s in store.branches.values())}")
+    print(f"  Scope transitions: {len(goto_events)}")
 
     print("\n💡 Key Insight:")
-    print("  Branches allowed exploring OT and CRDT in isolation.")
+    print("  Scopes allowed exploring OT and CRDT in isolation.")
     print("  Each approach was developed fully before comparison.")
-    print("  Diff provided clear visibility into tradeoffs.")
+    print("  Notes provided clear visibility into tradeoffs.")
 
 
 if __name__ == "__main__":

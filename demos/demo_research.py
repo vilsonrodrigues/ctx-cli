@@ -1,11 +1,11 @@
 """
-Research Agent Demo: Agent researches a topic, committing discoveries incrementally.
+Research Agent Demo: Agent researches a topic, taking notes incrementally.
 
 This demo simulates a research scenario where:
 1. Agent receives a research topic
-2. Explores different aspects, committing findings as it goes
-3. Uses branches for different research angles
-4. Merges findings into a comprehensive summary
+2. Explores different aspects, taking notes as it goes
+3. Uses scopes for different research angles
+4. Returns to main with synthesis
 
 Shows how episodic memory preserves research while exploring new angles.
 """
@@ -167,14 +167,14 @@ def run_research():
     print("=" * 70)
     print("RESEARCH AGENT DEMO: Investigating WebAssembly")
     print("=" * 70)
-    print("\nAgent will research WebAssembly, committing findings as it discovers...")
+    print("\nAgent will research WebAssembly, taking notes as it discovers...")
 
     # Start research
     chat("""
     I need you to research WebAssembly (Wasm) comprehensively.
 
-    Start by creating a research branch, then begin investigating.
-    Commit your initial understanding.
+    Start by creating a research scope, then begin investigating.
+    Take notes on your initial understanding.
     """, label="PHASE 1: Initial Overview")
 
     chat(f"""
@@ -182,7 +182,7 @@ def run_research():
 
     {RESEARCH_SOURCES['overview']}
 
-    Analyze this and commit your key findings.
+    Analyze this and take notes on your key findings.
     """, label="SOURCE: Overview")
 
     # Performance deep-dive
@@ -191,8 +191,8 @@ def run_research():
 
     {RESEARCH_SOURCES['performance']}
 
-    This might warrant a separate branch for performance research.
-    Commit your analysis.
+    This might warrant a separate scope for performance research.
+    Take notes on your analysis.
     """, label="PHASE 2: Performance Analysis")
 
     # Use cases
@@ -201,7 +201,7 @@ def run_research():
 
     {RESEARCH_SOURCES['use_cases']}
 
-    Commit the most significant use cases.
+    Take notes on the most significant use cases.
     """, label="PHASE 3: Use Cases")
 
     # Future and synthesis
@@ -210,14 +210,14 @@ def run_research():
 
     {RESEARCH_SOURCES['future']}
 
-    Commit these findings, then synthesize everything.
+    Take notes on these findings, then synthesize everything.
     """, label="PHASE 4: Future Roadmap")
 
     chat("""
     Now synthesize all your research:
-    1. Review your commits (use log)
-    2. Create a final summary commit
-    3. Tag this research as complete with key conclusions
+    1. Review your notes
+    2. Create a final summary note
+    3. Return to main with key conclusions
 
     What are the 3 most important things you learned?
     """, label="SYNTHESIS: Final Summary")
@@ -230,11 +230,11 @@ def run_research():
     print("=" * 70)
 
     print("\n📚 Research Log (Episodic Memory):")
-    for branch_name, branch in store.branches.items():
-        if branch.commits:
-            print(f"\n  Branch: {branch_name}")
-            for commit in branch.commits:
-                print(f"    [{commit.hash[:7]}] {commit.message[:60]}...")
+    for scope_name, scope in store.branches.items():
+        if scope.commits:
+            print(f"\n  Scope: {scope_name}")
+            for note in scope.commits:
+                print(f"    [{note.hash[:7]}] {note.message[:60]}...")
 
     print("\n🏷️  Conclusions Tagged:")
     if store.tags:
@@ -244,18 +244,18 @@ def run_research():
         print("  (no tags)")
 
     print("\n📊 Research Statistics:")
-    total_commits = sum(len(b.commits) for b in store.branches.values())
-    print(f"  Branches explored: {len(store.branches)}")
-    print(f"  Findings committed: {total_commits}")
+    total_notes = sum(len(s.commits) for s in store.branches.values())
+    print(f"  Scopes explored: {len(store.branches)}")
+    print(f"  Notes taken: {total_notes}")
     print(f"  Sources analyzed: {len(RESEARCH_SOURCES)}")
     print(f"  Total operations: {len(store.events)}")
 
     # Show knowledge preserved
-    print("\n💡 Knowledge Preserved in Commits:")
-    for branch in store.branches.values():
-        for commit in branch.commits[-3:]:  # Last 3 per branch
-            if len(commit.message) > 20:  # Skip trivial commits
-                print(f"  • {commit.message[:80]}")
+    print("\n💡 Knowledge Preserved in Notes:")
+    for scope in store.branches.values():
+        for note in scope.commits[-3:]:  # Last 3 per scope
+            if len(note.message) > 20:  # Skip trivial notes
+                print(f"  • {note.message[:80]}")
 
 
 if __name__ == "__main__":

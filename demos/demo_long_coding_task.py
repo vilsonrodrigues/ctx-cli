@@ -5,7 +5,7 @@ This demo measures context window growth for a LONG multi-step coding task.
 Each step requires reading existing code, making decisions, and writing more code.
 This accumulates significant context in the linear approach.
 
-The goal: Show that ctx_cli's commit-based folding keeps context manageable
+The goal: Show that ctx_cli's note-based folding keeps context manageable
 for tasks that would otherwise overflow the context window.
 """
 
@@ -434,7 +434,7 @@ def run_approach(
 
 
 def run_comparison(num_steps: int = 6):
-    """Run comparison between linear and branch approaches."""
+    """Run comparison between linear and scope approaches."""
     steps = TASK_STEPS[:num_steps]
 
     with tempfile.TemporaryDirectory() as tmpdir_linear:
@@ -449,9 +449,9 @@ def run_comparison(num_steps: int = 6):
                 use_ctx=False,
             )
 
-            # Branch approach
+            # Scope approach
             branch_result = run_approach(
-                approach="BRANCH (ctx_cli)",
+                approach="SCOPE (ctx_cli)",
                 steps=steps,
                 system_prompt=SYSTEM_PROMPT_BRANCH,
                 tools=[BASH_TOOL, READ_FILE_TOOL, WRITE_FILE_TOOL, LIST_FILES_TOOL, CTX_CLI_TOOL],
@@ -464,7 +464,7 @@ def run_comparison(num_steps: int = 6):
     print("COMPARISON RESULTS")
     print("=" * 70)
 
-    print(f"\n{'Metric':<30} {'LINEAR':>15} {'BRANCH':>15} {'Savings':>10}")
+    print(f"\n{'Metric':<30} {'LINEAR':>15} {'SCOPE':>15} {'Savings':>10}")
     print("-" * 70)
 
     input_savings = linear_result["total_input_tokens"] - branch_result["total_input_tokens"]
@@ -478,7 +478,7 @@ def run_comparison(num_steps: int = 6):
 
     print("\n" + "=" * 70)
     if input_savings > 0:
-        print(f"Branch approach saved {input_savings:,} input tokens ({input_pct:.1f}%)")
+        print(f"Scope approach saved {input_savings:,} input tokens ({input_pct:.1f}%)")
     else:
         print(f"Linear approach used {-input_savings:,} fewer input tokens ({-input_pct:.1f}%)")
     print("=" * 70)

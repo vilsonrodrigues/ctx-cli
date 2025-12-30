@@ -4,7 +4,7 @@ Token Savings Demo: Compare context-managed vs traditional approach.
 This demo shows the token economy of using ctx_cli:
 1. Runs a long task WITH context management
 2. Tracks token usage at each step
-3. Shows how commits flatten the token curve
+3. Shows how notes flatten the token curve
 
 Demonstrates the core value proposition of ctx_cli.
 """
@@ -67,7 +67,7 @@ def run_token_comparison():
                 "step": step,
                 "tokens": tokens,
                 "messages": len(context),
-                "commits": sum(len(b.commits) for b in store.branches.values()),
+                "notes": sum(len(b.commits) for b in store.branches.values()),
             })
 
             response = client.chat.completions.create(
@@ -91,7 +91,7 @@ def run_token_comparison():
                         args = json.loads(tool_call.function.arguments)
                         result, _ = execute_command(store, args["command"])
                         cmd = args["command"]
-                        if "commit" in cmd:
+                        if "note" in cmd:
                             print(f"    💾 {cmd[:60]}...")
                         else:
                             print(f"    🔧 {cmd[:60]}")
@@ -116,7 +116,7 @@ def run_token_comparison():
     print("TOKEN SAVINGS DEMO: Measuring Context Management Efficiency")
     print("=" * 70)
     print("\nWatching token usage as agent designs microservices architecture...")
-    print("💾 = commit (reduces future context)")
+    print("💾 = note (reduces future context)")
     print("🔧 = other ctx_cli command\n")
 
     # Series of architecture design tasks
@@ -145,21 +145,21 @@ def run_token_comparison():
     print("=" * 70)
 
     print("\n📊 Token Usage Over Time:")
-    print("   Step  │ Tokens  │ Messages │ Commits │ Efficiency")
+    print("   Step  │ Tokens  │ Messages │ Notes   │ Efficiency")
     print("   ─────┼─────────┼──────────┼─────────┼───────────")
 
     max_tokens = max(t["tokens"] for t in token_history)
     for t in token_history:
         bar_len = int((t["tokens"] / max_tokens) * 20)
         bar = "█" * bar_len + "░" * (20 - bar_len)
-        print(f"   {t['step']:4} │ {t['tokens']:7,} │ {t['messages']:8} │ {t['commits']:7} │ {bar}")
+        print(f"   {t['step']:4} │ {t['tokens']:7,} │ {t['messages']:8} │ {t['notes']:7} │ {bar}")
 
     print("\n📈 Statistics:")
 
-    # Calculate what tokens WOULD have been without commits
-    # Rough estimate: each commit saves ~500 tokens on average
-    commits_made = sum(len(b.commits) for b in store.branches.values())
-    estimated_savings = commits_made * 500
+    # Calculate what tokens WOULD have been without notes
+    # Rough estimate: each note saves ~500 tokens on average
+    notes_made = sum(len(b.commits) for b in store.branches.values())
+    estimated_savings = notes_made * 500
 
     final_tokens = token_history[-1]["tokens"] if token_history else 0
     without_management = final_tokens + estimated_savings
@@ -167,11 +167,11 @@ def run_token_comparison():
     print(f"   Final context size: {final_tokens:,} tokens")
     print(f"   Estimated without ctx_cli: {without_management:,} tokens")
     print(f"   Estimated savings: {estimated_savings:,} tokens ({(estimated_savings/without_management)*100:.1f}%)")
-    print(f"   Total commits made: {commits_made}")
+    print(f"   Total notes made: {notes_made}")
     print(f"   Context operations: {len(store.events)}")
 
     print("\n💡 Key Insight:")
-    print("   Each commit preserves reasoning while clearing working memory.")
+    print("   Each note preserves reasoning while clearing working memory.")
     print("   This flattens the token growth curve, enabling longer tasks.")
 
     # Show token curve visualization

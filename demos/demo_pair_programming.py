@@ -134,14 +134,14 @@ def run_pair_programming():
     # =========================================================================
     chat("""
     Let's build a simple CLI calculator together.
-    Start a feature branch and let's design the basic structure.
+    Start a feature scope and let's design the basic structure.
     What functions will we need?
     """, label="START: Planning the Calculator")
 
     chat("""
     Good plan! Let's implement the basic operations first.
     Write the add and subtract functions with proper error handling.
-    Commit when done.
+    Take notes when done.
     """, label="IMPLEMENT: Basic Operations")
 
     # =========================================================================
@@ -164,7 +164,7 @@ def run_pair_programming():
     chat("""
     Now let's add the CLI interface.
     Use argparse to accept: operation, num1, num2
-    Commit the CLI implementation.
+    Take note of the CLI implementation.
     """, label="IMPLEMENT: CLI Interface")
 
     # =========================================================================
@@ -182,12 +182,12 @@ def run_pair_programming():
     chat("""
     Perfect explanation! Back to our calculator.
     Let's add a history feature that remembers past calculations.
-    This should be the last piece. Commit and tag as v1.0.
+    This should be the last piece. Take notes and tag as v1.0.
     """, label="FINISH: History Feature")
 
     chat("""
     Great work! Show me the final status.
-    How many commits did we make? Did we lose any context during interruptions?
+    How many notes did we make? Did we lose any context during interruptions?
     """, label="REVIEW: Final Status")
 
     # =========================================================================
@@ -197,7 +197,7 @@ def run_pair_programming():
     print("PAIR PROGRAMMING SESSION SUMMARY")
     print("=" * 70)
 
-    print("\n💻 Development Progress (Commits):")
+    print("\n💻 Development Progress (Notes):")
     result, _ = store.log(limit=10)
     for line in result.split("\n"):
         if line.strip():
@@ -212,8 +212,8 @@ def run_pair_programming():
         print(f"    • {e.payload.get('message', 'WIP')[:50]}")
 
     print("\n📊 Session Statistics:")
-    print(f"  Feature branches: {len([b for b in store.branches if b != 'main'])}")
-    print(f"  Commits made: {sum(len(b.commits) for b in store.branches.values())}")
+    print(f"  Feature scopes: {len([b for b in store.branches if b != 'main'])}")
+    print(f"  Notes made: {sum(len(b.commits) for b in store.branches.values())}")
     print(f"  Interruptions handled: {len(stash_events)}")
     print(f"  Context preserved: 100% (thanks to stash!)")
 

@@ -1,13 +1,13 @@
 """
-Code Review Demo: Agent reviews code files, committing findings per file.
+Code Review Demo: Agent reviews code files, taking notes of findings per file.
 
 This demo simulates a code review scenario where:
 1. Agent receives multiple code files to review
-2. Reviews each file, committing findings before moving to next
-3. Uses branches to separate concerns (security, performance, style)
+2. Reviews each file, taking notes of findings before moving to next
+3. Uses scopes to separate concerns (security, performance, style)
 4. Tags final review summary
 
-Shows how commits preserve review context while keeping working memory lean.
+Shows how notes preserve review context while keeping working memory lean.
 """
 
 from __future__ import annotations
@@ -199,7 +199,7 @@ def run_code_review():
     chat("""
     I need you to perform a security-focused code review of a Python web application.
 
-    Start by creating a review branch, then I'll give you the files one by one.
+    Start by creating a review scope, then I'll give you the files one by one.
     """, label="SETUP: Initialize Review")
 
     # Review each file
@@ -211,7 +211,7 @@ def run_code_review():
 {code}
     ```
 
-    After reviewing, commit your findings for this file before I give you the next one.
+    After reviewing, take notes of your findings for this file before I give you the next one.
     Focus on: security vulnerabilities, bugs, and critical issues.
     """, label=f"REVIEW: {filename}")
 
@@ -245,7 +245,7 @@ def run_code_review():
 
     print("\n📊 Statistics:")
     print(f"  Files reviewed: {len(CODE_FILES)}")
-    print(f"  Notes made: {sum(len(b.commits) for b in store.branches.values())}")
+    print(f"  Notes taken: {sum(len(b.commits) for b in store.branches.values())}")
     print(f"  Context operations: {len(store.events)}")
 
     # Count security issues mentioned

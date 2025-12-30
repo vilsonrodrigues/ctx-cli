@@ -5,7 +5,7 @@ This demo simulates a realistic long-running task where the agent:
 1. Plans the implementation
 2. Works through multiple subtasks
 3. Handles interruptions
-4. Uses commits and branches extensively
+4. Uses notes and scopes extensively
 """
 
 from __future__ import annotations
@@ -113,8 +113,8 @@ def run_long_task():
     - Role-based access control (admin, user, guest)
     - Rate limiting on auth endpoints
 
-    Start by creating a planning branch and outlining the implementation steps.
-    Then commit your plan before starting implementation.
+    Start by creating a planning scope and outlining the implementation steps.
+    Then take note of your plan before starting implementation.
     """)
 
     # Phase 2: Database Models
@@ -125,11 +125,11 @@ def run_long_task():
     chat("""
     Good plan. Now let's implement the database models.
 
-    Create a new branch for database work.
+    Create a new scope for database work.
     Define the User model with all necessary fields.
     Also define Role and Permission models.
 
-    Commit each model as you complete it.
+    Take note of each model as you complete it.
     """)
 
     # Phase 3: Interruption!
@@ -155,7 +155,7 @@ def run_long_task():
 
     Pop your stash if you stashed, and continue implementing.
     Create the JWT token generation and validation functions.
-    Commit when done.
+    Take note when done.
     """)
 
     # Phase 5: User Approval
@@ -176,7 +176,7 @@ def run_long_task():
     print("FINAL STATUS")
     print("=" * 70)
 
-    print("\nBranches:")
+    print("\nScopes:")
     result, _ = store.branch()
     print(result)
 

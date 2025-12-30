@@ -7,7 +7,7 @@ This demo simulates a realistic scenario where:
 3. Returns to Project A
 4. Handles quick questions in between
 
-Shows how stash and branch isolation prevent context contamination.
+Shows how stash and scope isolation prevent context contamination.
 """
 
 from __future__ import annotations
@@ -126,13 +126,13 @@ def run_multi_project():
     chat("""
     I'm working on an e-commerce API. Let's start with the product catalog.
 
-    Create a branch for this project and help me design the Product model.
+    Create a scope for this project and help me design the Product model.
     Consider: name, price, description, category, inventory, images.
     """, label="PROJECT A: E-commerce API - Start")
 
     chat("""
     Good. Now add the Category model and create a relationship with Product.
-    Commit your work before continuing.
+    Take note of your work before continuing.
     """, label="PROJECT A: Adding Category")
 
     # =========================================================================
@@ -150,7 +150,7 @@ def run_multi_project():
     chat("""
     For the blog, add Author model with relationship to Post.
     Also add a Tag model for categorizing posts.
-    Commit when done.
+    Take note when done.
     """, label="PROJECT B: Expanding Blog Models")
 
     # =========================================================================
@@ -184,7 +184,7 @@ def run_multi_project():
     print("FINAL STATE: Multi-Project Overview")
     print("=" * 70)
 
-    print("\n📁 Branches:")
+    print("\n📁 Scopes:")
     result, _ = store.branch()
     for line in result.split("\n"):
         print(f"  {line}")
@@ -203,7 +203,7 @@ def run_multi_project():
     for event_type, count in sorted(event_counts.items()):
         print(f"  {event_type}: {count}")
 
-    print("\n🔀 Branch transitions:")
+    print("\n🔀 Scope transitions:")
     prev_branch = "main"
     for e in store.events:
         if e.type == "checkout":

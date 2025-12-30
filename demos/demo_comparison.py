@@ -1,9 +1,9 @@
 """
-Comparison Demo: Linear Loop vs Branch-based Context Management.
+Comparison Demo: Linear Loop vs Scope-based Context Management.
 
 This demo runs the SAME task twice:
 1. LINEAR approach: Traditional conversation loop, no ctx_cli
-2. BRANCH approach: Using ctx_cli with commits and branches
+2. SCOPE approach: Using ctx_cli with notes and scopes
 
 Compares token usage, context management, and information preservation.
 """
@@ -79,9 +79,9 @@ def run_linear_approach(client: OpenAI, tracker: TokenTracker) -> dict:
 
 
 def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
-    """Run the task using ctx_cli with commits and branches."""
+    """Run the task using ctx_cli with notes and scopes."""
     print("\n" + "=" * 70)
-    print("APPROACH 2: BRANCH-BASED (With ctx_cli)")
+    print("APPROACH 2: SCOPE-BASED (With ctx_cli)")
     print("=" * 70)
     print("Running same task with context management...\n")
 
@@ -180,7 +180,7 @@ def run_comparison():
     tracker = TokenTracker(model="gpt-4.1-mini")
 
     print("=" * 70)
-    print("COMPARISON DEMO: Linear vs Branch-based Context Management")
+    print("COMPARISON DEMO: Linear vs Scope-based Context Management")
     print("=" * 70)
     print(f"\nTask: Design a blog platform ({len(TASK_STEPS)} steps)")
     print("Running both approaches with the same task...\n")
@@ -197,7 +197,7 @@ def run_comparison():
     print("=" * 70)
 
     print("\n📊 Token Usage:")
-    print(f"  {'Metric':<25} {'Linear':>12} {'Branch':>12} {'Savings':>12}")
+    print(f"  {'Metric':<25} {'Linear':>12} {'Scope':>12} {'Savings':>12}")
     print(f"  {'-' * 25} {'-' * 12} {'-' * 12} {'-' * 12}")
 
     linear_max = linear_results["max_tokens"]
@@ -212,7 +212,7 @@ def run_comparison():
     print(f"  {'Final tokens':.<25} {linear_final:>12,} {branch_final:>12,} {savings_final:>11.1f}%")
 
     print("\n📈 Token Growth Curve:")
-    print(f"  Step   │ {'Linear':>10} │ {'Branch':>10} │ Difference")
+    print(f"  Step   │ {'Linear':>10} │ {'Scope':>10} │ Difference")
     print(f"  {'─' * 6}┼{'─' * 12}┼{'─' * 12}┼{'─' * 12}")
     for i, (l, b) in enumerate(zip(linear_results["token_history"], branch_results["token_history"]), 1):
         diff = l - b
@@ -220,7 +220,7 @@ def run_comparison():
         print(f"  {i:>5} │ {l:>10,} │ {b:>10,} │ {diff_str:>10}")
 
     print("\n📋 Context Management:")
-    print(f"  {'Metric':<30} {'Linear':>12} {'Branch':>12}")
+    print(f"  {'Metric':<30} {'Linear':>12} {'Scope':>12}")
     print(f"  {'-' * 30} {'-' * 12} {'-' * 12}")
     print(f"  {'Final message count':.<30} {linear_results['message_count']:>12} {branch_results['message_count']:>12}")
     print(f"  {'Notes made':.<30} {'N/A':>12} {branch_results.get('notes_made', 0):>12}")
@@ -228,13 +228,13 @@ def run_comparison():
 
     print("\n⏱️  Execution Time:")
     print(f"  Linear: {linear_results['elapsed_time']:.1f}s")
-    print(f"  Branch: {branch_results['elapsed_time']:.1f}s")
+    print(f"  Scope: {branch_results['elapsed_time']:.1f}s")
 
     print("\n💡 Key Insights:")
     if savings_final > 0:
-        print(f"  ✓ Branch approach saved {savings_final:.1f}% tokens at completion")
+        print(f"  ✓ Scope approach saved {savings_final:.1f}% tokens at completion")
     else:
-        print(f"  → Branch approach used {-savings_final:.1f}% more tokens (overhead from tool calls)")
+        print(f"  → Scope approach used {-savings_final:.1f}% more tokens (overhead from tool calls)")
 
     if branch_results.get("notes_made", 0) > 0:
         print(f"  ✓ {branch_results['notes_made']} notes preserved reasoning as episodic memory")
@@ -243,7 +243,7 @@ def run_comparison():
 
     print("\n📝 Summary:")
     print("  Linear: Simple but context grows unbounded")
-    print("  Branch: Overhead from tools, but flattens growth curve")
+    print("  Scope: Overhead from tools, but flattens growth curve")
     print("  Best for: Long tasks where context would exceed limits")
 
 

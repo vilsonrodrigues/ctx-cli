@@ -2,7 +2,7 @@
 Error Recovery Demo: Agent makes mistakes and uses reset to recover.
 
 This demo simulates a scenario where:
-1. Agent works on a problem, making commits
+1. Agent works on a problem, taking notes
 2. User identifies a wrong approach at some point
 3. Agent uses reset to go back to a good state
 4. Agent tries a different approach
@@ -132,20 +132,20 @@ def run_error_recovery():
     # =========================================================================
     chat("""
     I need to design a notification system for a mobile app.
-    Create a branch and let's start planning.
+    Create a scope and let's start planning.
     What are the key components we need?
     """, label="STEP 1: Initial Planning")
 
     chat("""
     Good start. Now let's decide on the delivery mechanism.
     Consider: push notifications, in-app notifications, email.
-    Commit your recommendation.
+    Take notes on your recommendation.
     """, label="STEP 2: Delivery Mechanism")
 
     chat("""
     For push notifications, let's decide on the provider.
     Options: Firebase Cloud Messaging, AWS SNS, OneSignal.
-    Analyze and commit your choice.
+    Analyze and take note of your choice.
     """, label="STEP 3: Provider Selection")
 
     # =========================================================================
@@ -154,13 +154,13 @@ def run_error_recovery():
     chat("""
     Now design the data model for storing notification preferences.
     Consider user preferences, device tokens, notification history.
-    Commit your design.
+    Take note of your design.
     """, label="STEP 4: Data Model")
 
     chat("""
     Let's add scheduling for notifications.
     Design how we'll handle scheduled and recurring notifications.
-    Commit the scheduling approach.
+    Take note of the scheduling approach.
     """, label="STEP 5: Scheduling")
 
     # =========================================================================
@@ -175,7 +175,7 @@ def run_error_recovery():
     This means your provider choice was wrong, and everything after
     (data model, scheduling) was based on that wrong assumption.
 
-    Use 'log' to see your commits, then reset to BEFORE the provider choice.
+    Use 'log' to see your notes, then reset to BEFORE the provider choice.
     We need to start fresh from the delivery mechanism decision.
     """, label="Provider Choice Was Wrong", is_error=True)
 
@@ -189,13 +189,13 @@ def run_error_recovery():
     - Redis pub/sub
     - PostgreSQL LISTEN/NOTIFY
 
-    Which works best for a private cloud? Commit your new choice.
+    Which works best for a private cloud? Take note of your new choice.
     """, label="RECOVERY: Self-hosted Solution")
 
     chat("""
     Now redesign the data model for this self-hosted approach.
     It will be different from the Firebase-based design.
-    Commit the new design.
+    Take note of the new design.
     """, label="STEP 6: New Data Model")
 
     chat("""
@@ -220,8 +220,8 @@ def run_error_recovery():
     reset_events = [e for e in store.events if e.type == "reset"]
     if reset_events:
         for e in reset_events:
-            target = e.payload.get("target_commit", "?")[:7]
-            removed = e.payload.get("removed_commits", 0)
+            target = e.payload.get("target_note", e.payload.get("target_commit", "?"))[:7]
+            removed = e.payload.get("removed_notes", e.payload.get("removed_commits", 0))
             print(f"  Rewound to [{target}], removed {removed} notes")
             print(f"  Reason: Wrong provider assumption (Firebase unavailable)")
     else:
@@ -232,7 +232,7 @@ def run_error_recovery():
     print(f"  Final notes: {total_notes}")
     print(f"  Rewinds performed: {len(reset_events)}")
     if reset_events:
-        wasted = sum(e.payload.get("removed_commits", 0) for e in reset_events)
+        wasted = sum(e.payload.get("removed_notes", e.payload.get("removed_commits", 0)) for e in reset_events)
         print(f"  Notes discarded: {wasted}")
         print(f"  Work saved: {total_notes} notes (would have continued wrong path)")
 

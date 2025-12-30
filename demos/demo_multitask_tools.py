@@ -1,7 +1,7 @@
 """
 Multitask Tools Demo: ctx_cli with Bash-like tools (Claude Code style).
 
-This demo compares LINEAR vs BRANCH approaches for a real multitask scenario:
+This demo compares LINEAR vs SCOPE approaches for a real multitask scenario:
 - Agent has access to: bash, read_file, write_file, list_files
 - Task: Create a Python project, write code, tests, run them, fix issues
 
@@ -191,7 +191,7 @@ Available tools:
 
 Complete the user's request step by step."""
 
-SYSTEM_PROMPT_BRANCH = """You are a software developer with access to bash-like tools and ctx_cli for context management.
+SYSTEM_PROMPT_SCOPE = """You are a software developer with access to bash-like tools and ctx_cli for context management.
 
 Available tools:
 - bash: Execute shell commands
@@ -315,13 +315,13 @@ def run_linear_approach(client: OpenAI, tracker: TokenTracker) -> dict:
 
 
 # =============================================================================
-# Branch Approach (With ctx_cli)
+# Scope Approach (With ctx_cli)
 # =============================================================================
 
-def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
+def run_scope_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     """Run multitask with ctx_cli context management."""
     print("\n" + "=" * 70)
-    print("APPROACH 2: BRANCH (With ctx_cli)")
+    print("APPROACH 2: SCOPE (With ctx_cli)")
     print("=" * 70)
 
     workdir = tempfile.mkdtemp(prefix="ctx_branch_")
@@ -338,11 +338,11 @@ def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     store.add_message(Message(role="user", content=MULTITASK_PROMPT))
 
     for round_num in range(40):  # More rounds for ctx_cli overhead
-        context = store.get_context(SYSTEM_PROMPT_BRANCH)
+        context = store.get_context(SYSTEM_PROMPT_SCOPE)
         tokens = tracker.count_messages(context)
         token_history.append(tokens)
 
-        print(f"Round {round_num + 1}: {tokens} tokens, branch={store.current_branch}")
+        print(f"Round {round_num + 1}: {tokens} tokens, scope={store.current_branch}")
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
@@ -410,18 +410,18 @@ def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
 
     # Verify results
     files_created = os.listdir(workdir)
-    total_commits = sum(len(b.commits) for b in store.branches.values())
+    total_notes = sum(len(b.commits) for b in store.branches.values())
 
     return {
-        "approach": "branch",
+        "approach": "scope",
         "final_tokens": token_history[-1] if token_history else 0,
         "max_tokens": max(token_history) if token_history else 0,
         "token_history": token_history,
         "message_count": sum(len(b.messages) for b in store.branches.values()),
         "tool_calls": tool_calls_count,
         "ctx_commands": ctx_commands,
-        "commits": total_commits,
-        "branches": len(store.branches),
+        "notes": total_notes,
+        "scopes": len(store.branches),
         "files_created": files_created,
         "elapsed_time": elapsed,
         "workdir": workdir,
@@ -447,12 +447,12 @@ def run_comparison():
     print("MULTITASK TOOLS COMPARISON")
     print("=" * 70)
     print("\nTask: Create Python calculator with tests, run tests, add docs")
-    print("Tools: bash, read_file, write_file, list_files (+ctx_cli for branch)")
+    print("Tools: bash, read_file, write_file, list_files (+ctx_cli for scope)")
     print("\nRunning both approaches...\n")
 
     # Run both
     linear = run_linear_approach(client, tracker)
-    branch = run_branch_approach(client, tracker)
+    scope = run_scope_approach(client, tracker)
 
     # ==========================================================================
     # Results
@@ -463,79 +463,79 @@ def run_comparison():
 
     # Token comparison
     print("\n📊 Token Usage:")
-    print(f"  {'Metric':<25} {'Linear':>12} {'Branch':>12} {'Diff':>12}")
+    print(f"  {'Metric':<25} {'Linear':>12} {'Scope':>12} {'Diff':>12}")
     print(f"  {'-' * 25} {'-' * 12} {'-' * 12} {'-' * 12}")
 
     linear_max = linear["max_tokens"]
-    branch_max = branch["max_tokens"]
-    diff_max = ((linear_max - branch_max) / linear_max * 100) if linear_max > 0 else 0
+    scope_max = scope["max_tokens"]
+    diff_max = ((linear_max - scope_max) / linear_max * 100) if linear_max > 0 else 0
 
     linear_final = linear["final_tokens"]
-    branch_final = branch["final_tokens"]
-    diff_final = ((linear_final - branch_final) / linear_final * 100) if linear_final > 0 else 0
+    scope_final = scope["final_tokens"]
+    diff_final = ((linear_final - scope_final) / linear_final * 100) if linear_final > 0 else 0
 
-    print(f"  {'Peak tokens':.<25} {linear_max:>12,} {branch_max:>12,} {diff_max:>+11.1f}%")
-    print(f"  {'Final tokens':.<25} {linear_final:>12,} {branch_final:>12,} {diff_final:>+11.1f}%")
+    print(f"  {'Peak tokens':.<25} {linear_max:>12,} {scope_max:>12,} {diff_max:>+11.1f}%")
+    print(f"  {'Final tokens':.<25} {linear_final:>12,} {scope_final:>12,} {diff_final:>+11.1f}%")
 
     # Tool usage
     print("\n🔧 Tool Usage:")
-    print(f"  {'Metric':<25} {'Linear':>12} {'Branch':>12}")
+    print(f"  {'Metric':<25} {'Linear':>12} {'Scope':>12}")
     print(f"  {'-' * 25} {'-' * 12} {'-' * 12}")
-    print(f"  {'Tool calls (bash/file)':.<25} {linear['tool_calls']:>12} {branch['tool_calls']:>12}")
-    print(f"  {'ctx_cli commands':.<25} {'N/A':>12} {branch.get('ctx_commands', 0):>12}")
-    print(f"  {'Total messages':.<25} {linear['message_count']:>12} {branch['message_count']:>12}")
+    print(f"  {'Tool calls (bash/file)':.<25} {linear['tool_calls']:>12} {scope['tool_calls']:>12}")
+    print(f"  {'ctx_cli commands':.<25} {'N/A':>12} {scope.get('ctx_commands', 0):>12}")
+    print(f"  {'Total messages':.<25} {linear['message_count']:>12} {scope['message_count']:>12}")
 
     # Context management
-    print("\n📋 Context Management (Branch approach):")
-    print(f"  Commits made: {branch.get('commits', 0)}")
-    print(f"  Branches used: {branch.get('branches', 1)}")
+    print("\n📋 Context Management (Scope approach):")
+    print(f"  Notes taken: {scope.get('notes', 0)}")
+    print(f"  Scopes used: {scope.get('scopes', 1)}")
 
     # Files created
     print("\n📁 Files Created:")
     print(f"  Linear: {', '.join(linear['files_created']) or '(none)'}")
-    print(f"  Branch: {', '.join(branch['files_created']) or '(none)'}")
+    print(f"  Scope: {', '.join(scope['files_created']) or '(none)'}")
 
     # Time
     print("\n⏱️  Execution Time:")
     print(f"  Linear: {linear['elapsed_time']:.1f}s")
-    print(f"  Branch: {branch['elapsed_time']:.1f}s")
+    print(f"  Scope: {scope['elapsed_time']:.1f}s")
 
     # Token growth curve
     print("\n📈 Token Growth (sampled):")
     linear_hist = linear["token_history"]
-    branch_hist = branch["token_history"]
-    max_len = max(len(linear_hist), len(branch_hist))
+    scope_hist = scope["token_history"]
+    max_len = max(len(linear_hist), len(scope_hist))
     sample_points = [0, max_len // 4, max_len // 2, 3 * max_len // 4, max_len - 1]
     sample_points = [p for p in sample_points if p < max_len]
 
-    print(f"  {'Round':<8} {'Linear':>10} {'Branch':>10}")
+    print(f"  {'Round':<8} {'Linear':>10} {'Scope':>10}")
     for i in sample_points:
         l = linear_hist[i] if i < len(linear_hist) else linear_hist[-1]
-        b = branch_hist[i] if i < len(branch_hist) else branch_hist[-1]
-        print(f"  {i + 1:<8} {l:>10,} {b:>10,}")
+        s = scope_hist[i] if i < len(scope_hist) else scope_hist[-1]
+        print(f"  {i + 1:<8} {l:>10,} {s:>10,}")
 
     # Insights
     print("\n💡 Key Insights:")
     if diff_final > 0:
-        print(f"  ✓ Branch approach saved {diff_final:.1f}% tokens at completion")
+        print(f"  ✓ Scope approach saved {diff_final:.1f}% tokens at completion")
     else:
-        print(f"  → Branch used {-diff_final:.1f}% more tokens (ctx_cli overhead)")
+        print(f"  → Scope used {-diff_final:.1f}% more tokens (ctx_cli overhead)")
 
-    if branch.get("commits", 0) > 0:
-        print(f"  ✓ {branch['commits']} commits preserved reasoning across subtasks")
+    if scope.get("notes", 0) > 0:
+        print(f"  ✓ {scope['notes']} notes preserved reasoning across subtasks")
 
-    if branch.get("branches", 1) > 1:
-        print(f"  ✓ {branch['branches']} branches isolated different concerns")
+    if scope.get("scopes", 1) > 1:
+        print(f"  ✓ {scope['scopes']} scopes isolated different concerns")
 
     print("\n📝 Summary:")
     print("  Linear: Simple, but context grows with every tool call")
-    print("  Branch: ctx_cli overhead, but flattens growth for long tasks")
+    print("  Scope: ctx_cli overhead, but flattens growth for long tasks")
     print("  Best for: Multi-file projects, iterative development, debugging")
 
     # Cleanup note
     print(f"\n🗑️  Temp directories (can be inspected):")
     print(f"  Linear: {linear['workdir']}")
-    print(f"  Branch: {branch['workdir']}")
+    print(f"  Scope: {scope['workdir']}")
 
 
 if __name__ == "__main__":

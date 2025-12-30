@@ -2,7 +2,7 @@
 Debugging Demo: Agent uses bisect to find where reasoning went wrong.
 
 This demo simulates a scenario where:
-1. Agent works on a problem, making commits along the way
+1. Agent works on a problem, taking notes along the way
 2. At some point, the agent's reasoning goes wrong
 3. Agent uses bisect to find where the error started
 4. Agent resets and tries a different approach
@@ -117,15 +117,15 @@ def run_debugging():
     print("=" * 70)
 
     # =========================================================================
-    # Phase 1: Building up commits (simulated algorithm work)
+    # Phase 1: Building up notes (simulated algorithm work)
     # =========================================================================
     chat("""
     I need help implementing a rate limiter algorithm.
 
-    Create a branch and let's work through this step by step.
+    Create a scope and let's work through this step by step.
     Start with the basic concept - what approach should we use?
 
-    Commit your initial analysis.
+    Take notes on your initial analysis.
     """, label="STEP 1: Initial Analysis")
 
     chat("""
@@ -134,14 +134,14 @@ def run_debugging():
     - Sliding window
     - Fixed window
 
-    Analyze each and commit your recommendation.
+    Analyze each and take note of your recommendation.
     """, label="STEP 2: Algorithm Selection")
 
     chat("""
     Let's go with your recommendation.
     Now design the data structure we need.
 
-    Commit the data structure design.
+    Take note of the data structure design.
     """, label="STEP 3: Data Structure Design")
 
     chat("""
@@ -149,7 +149,7 @@ def run_debugging():
     - How do we check if request is allowed?
     - How do we update state after each request?
 
-    Commit the implementation approach.
+    Take note of the implementation approach.
     """, label="STEP 4: Core Logic")
 
     chat("""
@@ -157,7 +157,7 @@ def run_debugging():
     - What if clock skews?
     - What about distributed systems?
 
-    Commit your edge case handling approach.
+    Take notes on your edge case handling approach.
     """, label="STEP 5: Edge Cases")
 
     # =========================================================================
@@ -170,7 +170,7 @@ def run_debugging():
     We need to use local storage only.
 
     Use bisect to find where you made the assumption about Redis.
-    Check your commit log first, then start bisecting.
+    Check your note log first, then start bisecting.
     """, label="PROBLEM DETECTED: Wrong Assumption")
 
     # =========================================================================
@@ -182,7 +182,7 @@ def run_debugging():
     Now reset to before that point and try a different approach.
     Use in-memory storage with periodic persistence instead.
 
-    Commit your new approach.
+    Take note of your new approach.
     """, label="RESOLUTION: New Approach")
 
     chat("""
@@ -212,7 +212,7 @@ def run_debugging():
     print("\n🔄 Reset Events:")
     for e in store.events:
         if e.type == "reset":
-            print(f"  reset to {e.payload.get('target_commit', '?')[:7]}, removed {e.payload.get('removed_commits', 0)} commits")
+            print(f"  reset to {e.payload.get('target_commit', '?')[:7]}, removed {e.payload.get('removed_commits', 0)} notes")
 
     print(f"\nTotal operations: {len(store.events)}")
 

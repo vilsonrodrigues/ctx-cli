@@ -1,12 +1,12 @@
 """
-Auto-commit Policies Demo: Automatic context management based on rules.
+Auto-note Policies Demo: Automatic context management based on rules.
 
-This demo shows how policies can automatically trigger commits:
-1. MaxMessagesPolicy - Commit when message count exceeds threshold
-2. MaxTokensPolicy - Commit when token count exceeds threshold
-3. InactivityPolicy - Commit after N messages without manual commit
+This demo shows how policies can automatically trigger notes:
+1. MaxMessagesPolicy - Take note when message count exceeds threshold
+2. MaxTokensPolicy - Take note when token count exceeds threshold
+3. InactivityPolicy - Take note after N messages without manual note
 
-Policies help when agents forget to commit or context grows too large.
+Policies help when agents forget to take notes or context grows too large.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ Available commands: scope, goto, note, scopes, notes"""
 
 
 def run_policies_demo():
-    """Demonstrate auto-commit policies."""
+    """Demonstrate auto-note policies."""
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print("Error: Set OPENAI_API_KEY")
@@ -54,26 +54,26 @@ def run_policies_demo():
         InactivityPolicy(max_messages_since_commit=4),
     ])
 
-    auto_commits = []
+    auto_notes = []
     policy_triggers = []
 
     def check_and_apply_policies() -> str | None:
-        """Check policies and auto-commit if needed."""
+        """Check policies and auto-note if needed."""
         results = policies.evaluate(store)
 
         for result in results:
             if result.triggered:
                 if result.action == PolicyAction.FORCE_COMMIT:
-                    # Auto-commit
-                    branch = store.branches[store.current_branch]
-                    commit_msg = result.auto_commit_message or f"Auto-commit: {len(branch.messages)} messages"
-                    commit_result, event = store.commit(commit_msg)
-                    auto_commits.append({
-                        "message": commit_msg,
-                        "messages_count": len(branch.messages),
+                    # Auto-note
+                    scope = store.branches[store.current_branch]
+                    note_msg = result.auto_commit_message or f"Auto-note: {len(scope.messages)} messages"
+                    note_result, event = store.commit(note_msg)
+                    auto_notes.append({
+                        "message": note_msg,
+                        "messages_count": len(scope.messages),
                     })
-                    policy_triggers.append("force_commit")
-                    return f"[AUTO-COMMIT] {commit_result}"
+                    policy_triggers.append("force_note")
+                    return f"[AUTO-NOTE] {note_result}"
 
                 elif result.action == PolicyAction.SUGGEST_COMMIT:
                     policy_triggers.append("suggest")
@@ -156,19 +156,19 @@ def run_policies_demo():
         return "[Max rounds]"
 
     print("=" * 70)
-    print("AUTO-COMMIT POLICIES DEMO")
+    print("AUTO-NOTE POLICIES DEMO")
     print("=" * 70)
     print("\nPolicies configured:")
-    print("  • MaxMessagesPolicy: warn at 4, suggest commit at 6 messages")
-    print("  • MaxTokensPolicy: warn at 1500, suggest commit at 2000 tokens")
-    print("  • InactivityPolicy: suggest commit after 4 messages since last commit")
+    print("  • MaxMessagesPolicy: warn at 4, suggest note at 6 messages")
+    print("  • MaxTokensPolicy: warn at 1500, suggest note at 2000 tokens")
+    print("  • InactivityPolicy: suggest note after 4 messages since last note")
     print("\nWatch how the system monitors and suggests context management...\n")
 
     # =========================================================================
-    # Simulate a conversation without manual commits
+    # Simulate a conversation without manual notes
     # =========================================================================
     chat("""
-    Start a new branch for this task. I need help designing a REST API
+    Start a new scope for this task. I need help designing a REST API
     for a todo application. What endpoints should we have?
     """, label="TASK START: API Design")
 
@@ -222,27 +222,27 @@ def run_policies_demo():
     else:
         print("  (none)")
 
-    print("\n💾 Auto-commits Made:")
-    if auto_commits:
-        for ac in auto_commits:
-            print(f"  • {ac['message'][:50]}... ({ac['messages_count']} msgs)")
+    print("\n💾 Auto-notes Made:")
+    if auto_notes:
+        for an in auto_notes:
+            print(f"  • {an['message'][:50]}... ({an['messages_count']} msgs)")
     else:
-        print("  (none - model committed manually or policies just warned)")
+        print("  (none - model took notes manually or policies just warned)")
 
-    print("\n📋 Commit Log:")
+    print("\n📋 Notes Log:")
     result, _ = store.log(limit=10)
     for line in result.split("\n"):
         if line.strip():
             print(f"  {line}")
 
     print("\n📊 Final Statistics:")
-    total_commits = sum(len(b.commits) for b in store.branches.values())
-    print(f"  Total commits: {total_commits}")
-    print(f"  Auto-commits: {len(auto_commits)}")
+    total_notes = sum(len(s.commits) for s in store.branches.values())
+    print(f"  Total notes: {total_notes}")
+    print(f"  Auto-notes: {len(auto_notes)}")
     print(f"  Policy triggers: {len(policy_triggers)}")
 
     print("\n💡 Policy Value:")
-    print("  Policies monitor context growth and prompt for commits.")
+    print("  Policies monitor context growth and prompt for notes.")
     print("  This prevents context overflow and lost reasoning.")
 
 
