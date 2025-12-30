@@ -136,7 +136,50 @@ The agent must explore two architectural approaches:
 
 We measure whether the agent can recall specific details from each approach when making the final comparison, indicating successful knowledge isolation and retrieval.
 
-## 4.5 Controlled Variables
+## 4.5 Task 4: SWE-Bench-CL Continual Learning
+
+### 4.5.1 Task Description
+
+We adapt the SWE-Bench-CL benchmark [20] to evaluate knowledge transfer across sequential GitHub issue resolution tasks. SWE-Bench-CL organizes 273 tasks from 8 repositories into chronologically ordered sequences, simulating realistic software evolution.
+
+For our evaluation, we use a simplified version that measures context window growth rather than actual code correctness:
+
+- **Dataset**: Django sequence (50 tasks available, we use 15)
+- **Task format**: Each task provides a problem statement and files to modify
+- **Evaluation**: Agent analyzes issue and proposes solution approach
+
+### 4.5.2 Expected Behavior
+
+**Linear baseline**: Context grows with each task as previous analyses accumulate. After 15 tasks, context includes all prior exchanges.
+
+**Scope treatment**:
+1. Create scope for each task
+2. Analyze problem, identify patterns
+3. Note reusable patterns (file structures, Django idioms)
+4. Return to main with summary
+5. Future tasks can reference accumulated patterns
+
+### 4.5.3 Metrics
+
+We focus on context window metrics (relevant with prompt caching):
+
+| Metric | Description |
+|--------|-------------|
+| **Peak Context** | Maximum context window size |
+| **Final Task Context** | Context size on last task |
+| **Context Growth** | Total tokens added across all tasks |
+| **API Calls** | Number of model invocations |
+| **Cached Tokens** | Prompt tokens served from cache |
+| **Execution Time** | Wall-clock time for completion |
+
+### 4.5.4 Relevance to Real-World Agents
+
+This task models a common pattern: an agent processing a queue of related tasks where knowledge from earlier tasks could benefit later ones. Examples include:
+- CI/CD agents processing multiple PRs on the same repository
+- Support agents handling tickets for the same product
+- Code review agents analyzing related changes
+
+## 4.6 Controlled Variables
 
 To ensure fair comparison:
 

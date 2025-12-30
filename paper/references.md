@@ -89,13 +89,28 @@
     ArXiv: 2210.03629.
     https://arxiv.org/abs/2210.03629
 
+## Benchmarks
+
+[20] T. Joshi. **SWE-Bench-CL: Continual Learning for Coding Agents**
+    ArXiv: 2507.00014, 2025.
+    https://arxiv.org/abs/2507.00014
+
+[21] C. E. Jimenez et al. **SWE-bench: Can Language Models Resolve Real-World GitHub Issues?**
+    ICLR 2024.
+    ArXiv: 2310.06770.
+    https://arxiv.org/abs/2310.06770
+
+[22] J. Xu et al. **LOCOMO: A Long-Context Conversational Memory Benchmark**
+    ArXiv: 2402.17753, 2024.
+    https://arxiv.org/abs/2402.17753
+
 ## Technical Infrastructure
 
-[20] OpenAI. **GPT-4 Technical Report**
+[23] OpenAI. **GPT-4 Technical Report**
     ArXiv: 2303.08774, 2023.
     https://arxiv.org/abs/2303.08774
 
-[21] OpenAI. **tiktoken: Fast BPE tokenizer for use with OpenAI's models**
+[24] OpenAI. **tiktoken: Fast BPE tokenizer for use with OpenAI's models**
     https://github.com/openai/tiktoken
 
 ---
@@ -175,5 +190,8 @@
 | 17 | A-MEM | Zettelkasten memory |
 | 18 | Voyager | Skill libraries |
 | 19 | ReAct | Agent framework |
-| 20 | GPT-4 | Model reference |
-| 21 | tiktoken | Tokenizer |
+| 20 | SWE-Bench-CL | Continual learning benchmark |
+| 21 | SWE-bench | Code generation benchmark |
+| 22 | LOCOMO | Conversational memory benchmark |
+| 23 | GPT-4 | Model reference |
+| 24 | tiktoken | Tokenizer |
