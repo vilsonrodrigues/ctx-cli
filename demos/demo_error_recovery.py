@@ -28,22 +28,22 @@ SYSTEM_PROMPT = """You are a software engineer solving a design problem.
 You have ctx_cli for context management. Important for error recovery:
 
 ## When you realize you made a wrong decision:
-1. Use 'log' to see your commit history
-2. Identify which commit was the last good state
-3. Use 'reset <hash> --hard' to go back to that state
+1. Use 'notes' to see your note history
+2. Identify which note was the last good state
+3. Use 'rewind <note-id> --hard' to go back to that state
 4. Try a different approach
 
 ## Recovery commands:
-- log - See your commits and find the good one
-- reset <hash> --hard - Go back to that state, discarding later work
-- checkout -b new-approach -m "Trying different solution"
+- notes - See your notes and find the good one
+- rewind <note-id> --hard - Go back to that state, discarding later work
+- scope new-approach -m "Trying different solution"
 
 ## Best practices:
-- Commit after each decision so you have recovery points
-- When resetting, explain what went wrong
-- After reset, take a different path
+- Take notes after each decision so you have recovery points
+- When rewinding, explain what went wrong
+- After rewind, take a different path
 
-Don't be afraid to reset - it's better than continuing down a wrong path."""
+Don't be afraid to rewind - it's better than continuing down a wrong path."""
 
 
 def run_error_recovery():
@@ -90,12 +90,14 @@ def run_error_recovery():
                         args = json.loads(tool_call.function.arguments)
                         result, _ = execute_command(store, args["command"])
                         cmd = args["command"]
-                        if "reset" in cmd:
-                            print(f"  ⏪ RESET: {cmd}")
-                        elif "commit" in cmd:
-                            print(f"  💾 {cmd[11:60]}...")
-                        elif "log" in cmd:
+                        if "rewind" in cmd:
+                            print(f"  ⏪ REWIND: {cmd}")
+                        elif "note" in cmd:
+                            print(f"  📝 {cmd[8:60]}...")
+                        elif "notes" in cmd:
                             print(f"  📜 Checking history...")
+                        elif "scope" in cmd:
+                            print(f"  📂 SCOPE: {cmd}")
                         else:
                             print(f"  [ctx] {cmd[:50]}")
                         tool_results.append((tool_call.id, result))
@@ -208,35 +210,35 @@ def run_error_recovery():
     print("ERROR RECOVERY RESULTS")
     print("=" * 70)
 
-    print("\n📜 Commit History (showing recovery):")
-    result, _ = store.log(limit=15)
+    print("\n📜 Note History (showing recovery):")
+    result, _ = execute_command(store, "notes")
     for line in result.split("\n"):
         if line.strip():
             print(f"  {line}")
 
-    print("\n⏪ Reset Events:")
+    print("\n⏪ Rewind Events:")
     reset_events = [e for e in store.events if e.type == "reset"]
     if reset_events:
         for e in reset_events:
             target = e.payload.get("target_commit", "?")[:7]
             removed = e.payload.get("removed_commits", 0)
-            print(f"  Reset to [{target}], removed {removed} commits")
+            print(f"  Rewound to [{target}], removed {removed} notes")
             print(f"  Reason: Wrong provider assumption (Firebase unavailable)")
     else:
-        print("  (no resets)")
+        print("  (no rewinds)")
 
     print("\n📊 Recovery Statistics:")
-    total_commits = sum(len(b.commits) for b in store.branches.values())
-    print(f"  Final commits: {total_commits}")
-    print(f"  Resets performed: {len(reset_events)}")
+    total_notes = sum(len(b.commits) for b in store.branches.values())
+    print(f"  Final notes: {total_notes}")
+    print(f"  Rewinds performed: {len(reset_events)}")
     if reset_events:
         wasted = sum(e.payload.get("removed_commits", 0) for e in reset_events)
-        print(f"  Commits discarded: {wasted}")
-        print(f"  Work saved: {total_commits} commits (would have continued wrong path)")
+        print(f"  Notes discarded: {wasted}")
+        print(f"  Work saved: {total_notes} notes (would have continued wrong path)")
 
     print("\n💡 Key Insight:")
-    print("  Without reset, the agent would have continued building on")
-    print("  a wrong assumption. Reset enables clean recovery.")
+    print("  Without rewind, the agent would have continued building on")
+    print("  a wrong assumption. Rewind enables clean recovery.")
 
 
 if __name__ == "__main__":

@@ -31,9 +31,11 @@ Your goal: Design a complete e-commerce microservices architecture.
 This is a large task - manage your context carefully.
 
 Rules:
-1. Commit after EVERY service you design
-2. Keep commit messages concise but informative
-3. Don't repeat information already committed
+1. Take notes after EVERY service you design
+2. Keep notes concise but informative
+3. Don't repeat information already noted
+
+Commands: scope, goto, note, notes
 
 Be thorough but token-efficient."""
 

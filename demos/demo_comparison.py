@@ -94,14 +94,14 @@ def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     system_prompt = """You are a software architect designing a system.
 
 You have ctx_cli for context management. USE IT ACTIVELY:
-- Commit after each major design decision
-- Keep commit messages concise but informative
+- Save notes after each major design decision
+- Keep notes concise but informative
 - This preserves your reasoning while keeping context lean
 
 Key commands:
-- commit -m "description" - Save your current reasoning
-- checkout -b name -m "note" - Create branch for new area
-- log - See your commit history"""
+- scope name -m "starting this area" - Create scope for new area
+- note -m "description" - Save your current reasoning
+- goto main -m "summary" - Return with findings"""
 
     def chat(user_message: str) -> int:
         nonlocal commits_made
@@ -130,7 +130,7 @@ Key commands:
                     if tool_call.function.name == "ctx_cli":
                         args = json.loads(tool_call.function.arguments)
                         result, _ = execute_command(store, args["command"])
-                        if "commit" in args["command"]:
+                        if "note" in args["command"]:
                             commits_made += 1
                         store.add_message(Message(
                             role="tool",
@@ -150,7 +150,7 @@ Key commands:
         print(f"Step {i}: {step[:50]}...")
         tokens = chat(step)
         token_history.append(tokens)
-        print(f"  → Tokens: {tokens}, Commits: {commits_made}")
+        print(f"  → Tokens: {tokens}, Notes: {commits_made}")
 
     elapsed = time.time() - start_time
 
@@ -160,7 +160,7 @@ Key commands:
         "max_tokens": max(token_history) if token_history else 0,
         "token_history": token_history,
         "message_count": sum(len(b.messages) for b in store.branches.values()),
-        "commits_made": commits_made,
+        "notes_made": commits_made,
         "branches": len(store.branches),
         "elapsed_time": elapsed,
     }
@@ -220,8 +220,8 @@ def run_comparison():
     print(f"  {'Metric':<30} {'Linear':>12} {'Branch':>12}")
     print(f"  {'-' * 30} {'-' * 12} {'-' * 12}")
     print(f"  {'Final message count':.<30} {linear_results['message_count']:>12} {branch_results['message_count']:>12}")
-    print(f"  {'Commits made':.<30} {'N/A':>12} {branch_results.get('commits_made', 0):>12}")
-    print(f"  {'Branches created':.<30} {'N/A':>12} {branch_results.get('branches', 1):>12}")
+    print(f"  {'Notes made':.<30} {'N/A':>12} {branch_results.get('notes_made', 0):>12}")
+    print(f"  {'Scopes created':.<30} {'N/A':>12} {branch_results.get('branches', 1):>12}")
 
     print("\n⏱️  Execution Time:")
     print(f"  Linear: {linear_results['elapsed_time']:.1f}s")
@@ -233,10 +233,10 @@ def run_comparison():
     else:
         print(f"  → Branch approach used {-savings_final:.1f}% more tokens (overhead from tool calls)")
 
-    if branch_results.get("commits_made", 0) > 0:
-        print(f"  ✓ {branch_results['commits_made']} commits preserved reasoning as episodic memory")
+    if branch_results.get("notes_made", 0) > 0:
+        print(f"  ✓ {branch_results['notes_made']} notes preserved reasoning as episodic memory")
     else:
-        print("  → No commits made (model didn't use ctx_cli)")
+        print("  → No notes made (model didn't use ctx_cli)")
 
     print("\n📝 Summary:")
     print("  Linear: Simple but context grows unbounded")

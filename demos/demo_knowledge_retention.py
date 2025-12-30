@@ -23,7 +23,7 @@ from openai import OpenAI
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ctx_cli import CTX_CLI_TOOL, PLAN_TOOL, execute_command
+from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
 from tokens import TokenTracker
 
@@ -130,19 +130,20 @@ Complete the task thoroughly."""
 
 SYSTEM_PROMPT_BRANCH = '''You are a software developer with episodic memory via ctx_cli.
 
-Tools: read_file, write_file, plan, ctx_cli
+Tools: read_file, write_file, ctx_cli
 
 # MEMORY SYSTEM
 
-Your commits are your long-term memory. They persist across projects and sessions.
+Your notes are your long-term memory. They persist across projects and sessions.
 When you start a new project, you can recall patterns and decisions from past projects.
 
 ## Commands
 
-- `ctx_cli branch`: List all branches (past projects)
-- `ctx_cli log <branch>`: Read commits from any branch (recall learnings)
-- `ctx_cli checkout -b <name> -m "<note>"`: Start new branch
-- `ctx_cli commit -m "<message>"`: Save knowledge to memory
+- `ctx_cli scopes`: List all scopes (past projects)
+- `ctx_cli notes <scope>`: Read notes from any scope (recall learnings)
+- `ctx_cli scope <name> -m "<note>"`: Start new scope
+- `ctx_cli note -m "<message>"`: Save knowledge to memory
+- `ctx_cli goto main -m "<summary>"`: Return to main
 
 # WORKFLOW FOR NEW PROJECTS
 
@@ -151,8 +152,8 @@ When you start a new project, you can recall patterns and decisions from past pr
 Before starting, check if you have relevant past experience:
 
 ```
-ctx_cli branch
-ctx_cli log project-a
+ctx_cli scopes
+ctx_cli notes project-a
 ```
 
 Look for:
@@ -160,32 +161,22 @@ Look for:
 - Decisions and their rationale
 - Code structures to reuse
 
-## Step 2: PLAN (referencing past learnings)
+## Step 2: CREATE SCOPE
 
 ```
-plan(content="""
-TASK: Create Product model
-PAST EXPERIENCE: User model from project-a used dataclass with validation methods
-APPLY FROM PAST:
-- Same dataclass structure
-- Same validation pattern (is_valid method)
-- Same to_dict serialization
-APPROACH:
-1. Recall project-a patterns via ctx_cli log
-2. Apply same structure to Product
-""")
+ctx_cli scope project-b -m "Creating Product model using patterns from project-a"
 ```
 
 ## Step 3: WORK
 
 Apply patterns from past projects.
 
-## Step 4: COMMIT (capture knowledge for future)
+## Step 4: NOTE (capture knowledge for future)
 
-Write commits that your future self can learn from:
+Write notes that your future self can learn from:
 
 ```
-ctx_cli commit -m """
+ctx_cli note -m """
 COMPLETED: Product model with validation
 
 WHAT WAS BUILT:
@@ -199,15 +190,16 @@ PATTERNS APPLIED (from project-a User model):
 - Dataclass with validation methods
 - Individual validate_X methods for each rule
 - is_valid() aggregates all validations
-- to_dict() for serialization
-
-KEY DECISIONS:
-- Same structure as User model for consistency
-- Price as float, stock as int
 
 REUSABLE FOR FUTURE:
 - This validation pattern works for any entity model
 """
+```
+
+## Step 5: RETURN TO MAIN
+
+```
+ctx_cli goto main -m "Product model complete, same patterns as User model"
 ```
 
 # EXAMPLE: Cross-Project Memory
@@ -215,41 +207,21 @@ REUSABLE FOR FUTURE:
 User: Create a Product model similar to User model patterns.
 
 [1. RECALL PAST WORK]
-ctx_cli log project-a
+ctx_cli notes project-a
 -> Shows: User model with dataclass, email validation, password validation, is_valid(), to_dict()
 
-[2. PLAN]
-plan(content="""
-TASK: Create Product model
-LEARNINGS FROM project-a:
-- Dataclass structure with typed fields
-- Individual validation methods
-- is_valid() aggregates validations
-- to_dict() for serialization
-APPROACH: Apply same patterns to Product domain
-""")
+[2. SCOPE]
+ctx_cli scope project-b -m "Starting: Product model using patterns from User model"
 
-[3. BRANCH]
-ctx_cli checkout -b project-b -m "Starting: Product model using patterns from User model"
-
-[4. WORK]
+[3. WORK]
 write_file models/product.py [using patterns from project-a]
 read_file models/product.py [verify]
 
-[5. COMMIT]
-ctx_cli commit -m """
-COMPLETED: Product model
+[4. NOTE]
+ctx_cli note -m "Created Product model with same validation pattern as User"
 
-APPLIED PATTERNS FROM project-a:
-- Dataclass with validation methods (same as User)
-- is_valid() + to_dict() pattern
-
-DIFFERENCES FROM User:
-- Price/stock validation instead of email/password
-- is_available flag instead of is_active
-
-REUSABLE: This entity pattern now proven across 2 models
-"""
+[5. RETURN]
+ctx_cli goto main -m "Product model complete, validated price/stock"
 '''
 
 
@@ -412,7 +384,7 @@ def run_comparison():
                 task=PROJECT_A_TASK,
                 task_name="PROJECT A: User Model (Branch)",
                 system_prompt=SYSTEM_PROMPT_BRANCH,
-                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, PLAN_TOOL, CTX_CLI_TOOL],
+                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, CTX_CLI_TOOL],
                 workdir=project_a_branch,
                 store=store,
             )
@@ -433,7 +405,7 @@ def run_comparison():
                 task=PROJECT_B_TASK_BRANCH,
                 task_name="PROJECT B: Product Model (Branch - with memory)",
                 system_prompt=SYSTEM_PROMPT_BRANCH,
-                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, PLAN_TOOL, CTX_CLI_TOOL],
+                tools=[READ_FILE_TOOL, WRITE_FILE_TOOL, CTX_CLI_TOOL],
                 workdir=project_b_branch,
                 store=store,
             )

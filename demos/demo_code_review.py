@@ -28,17 +28,17 @@ SYSTEM_PROMPT = """You are a senior code reviewer performing a thorough code rev
 You have ctx_cli for context management. Use it strategically:
 
 ## Review Strategy:
-1. Create a branch for the review (e.g., review-auth-module)
-2. Review each file, then COMMIT your findings before moving to next file
-3. Your commit messages should capture:
+1. Create a scope for the review (e.g., review-auth-module)
+2. Review each file, then save your findings as a NOTE before moving to next file
+3. Your notes should capture:
    - Issues found (bugs, security, performance)
    - Suggestions for improvement
    - Good patterns observed
 
-## Commands you'll use:
-- checkout -b review-xyz -m "Starting review of XYZ" - Start review branch
-- commit -m "file.py: [issues and findings]" - Save review of one file
-- tag review-complete -m "Summary" - Mark review as complete
+## Commands:
+- scope review-xyz -m "Starting review of XYZ" - Create review scope
+- note -m "file.py: [issues and findings]" - Save review of one file
+- goto main -m "Review complete: [summary]" - Return with findings
 
 ## Review Checklist per file:
 - Security vulnerabilities
@@ -47,7 +47,7 @@ You have ctx_cli for context management. Use it strategically:
 - Error handling
 - Edge cases
 
-Be thorough but concise in commits. Each commit = one file's review."""
+Be thorough but concise in notes. Each note = one file's review."""
 
 # Simulated code files for review
 CODE_FILES = {
@@ -161,10 +161,12 @@ def run_code_review():
                         args = json.loads(tool_call.function.arguments)
                         result, _ = execute_command(store, args["command"])
                         cmd = args["command"]
-                        if "commit" in cmd:
-                            print(f"  💾 COMMIT: {cmd[11:70]}...")
-                        elif "tag" in cmd:
-                            print(f"  🏷️  TAG: {cmd}")
+                        if "note" in cmd:
+                            print(f"  📝 NOTE: {cmd[8:70]}...")
+                        elif "scope" in cmd:
+                            print(f"  📂 SCOPE: {cmd}")
+                        elif "goto" in cmd:
+                            print(f"  ↩️  GOTO: {cmd}")
                         else:
                             print(f"  [ctx] {cmd[:60]}")
                         tool_results.append((tool_call.id, result))
@@ -228,8 +230,8 @@ def run_code_review():
     print("CODE REVIEW RESULTS")
     print("=" * 70)
 
-    print("\n📋 Review Commits:")
-    result, _ = store.log(limit=10)
+    print("\n📋 Review Notes:")
+    result, _ = execute_command(store, "notes")
     for line in result.split("\n"):
         if line.strip():
             print(f"  {line}")
@@ -243,7 +245,7 @@ def run_code_review():
 
     print("\n📊 Statistics:")
     print(f"  Files reviewed: {len(CODE_FILES)}")
-    print(f"  Commits made: {sum(len(b.commits) for b in store.branches.values())}")
+    print(f"  Notes made: {sum(len(b.commits) for b in store.branches.values())}")
     print(f"  Context operations: {len(store.events)}")
 
     # Count security issues mentioned
@@ -255,7 +257,7 @@ def run_code_review():
                 if keyword.lower() in commit.message.lower():
                     issues_found += 1
                     break
-    print(f"  Security-related commits: {issues_found}")
+    print(f"  Security-related notes: {issues_found}")
 
 
 if __name__ == "__main__":

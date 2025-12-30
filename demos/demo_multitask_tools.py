@@ -198,24 +198,22 @@ Available tools:
 - read_file: Read file contents
 - write_file: Create/update files
 - list_files: List directory contents
-- ctx_cli: Git-like context management
+- ctx_cli: Context management
 
 WORKFLOW with ctx_cli:
-1. Start each major subtask on a new branch
-2. Commit after completing each subtask
-3. Use descriptive commit messages
-4. Merge completed work back to main
+1. Create scope for each major subtask: scope <name> -m "what I'll do"
+2. Take notes after completing each subtask: note -m "what I did"
+3. Return to main when done: goto main -m "summary"
 
 Example workflow for a multi-file task:
-- checkout -b feature-calculator -m "Creating calculator module"
+- scope calculator -m "Creating calculator module"
 - [create calculator.py]
-- commit -m "Calculator: implemented add, subtract, multiply, divide"
-- checkout -b feature-tests -m "Writing tests"
+- note -m "Calculator: implemented add, subtract, multiply, divide"
+- goto main -m "Calculator module complete"
+- scope tests -m "Writing tests"
 - [create tests]
-- commit -m "Tests: added pytest tests for all operations"
-- checkout main -m "Merging completed work"
-- merge feature-calculator
-- merge feature-tests
+- note -m "Tests: added pytest tests for all operations"
+- goto main -m "Tests complete"
 
 This keeps context focused and preserves your reasoning."""
 

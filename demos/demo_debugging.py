@@ -28,22 +28,22 @@ SYSTEM_PROMPT = """You are a software engineer debugging a complex algorithm.
 You have ctx_cli for context management. Key commands for debugging:
 
 ## For tracking your work:
-- commit -m "description" - Save your current reasoning state
-- checkout -b name -m "note" - Create branch for new approach
+- scope name -m "starting this area" - Create scope for new approach
+- note -m "description" - Save your current reasoning state
+- goto main -m "summary" - Return with findings
 
 ## For debugging reasoning:
 - bisect start - Start finding where reasoning went wrong
-- bisect good <commit> - Mark a commit where reasoning was correct
-- bisect bad <commit> - Mark a commit where reasoning was wrong
+- bisect good <note-id> - Mark a note where reasoning was correct
+- bisect bad <note-id> - Mark a note where reasoning was wrong
 - bisect reset - Cancel bisect session
 
 ## For recovery:
-- reset <commit> --hard - Go back to a previous state
-- log - See your commit history
-- diff <branch> - Compare approaches
+- rewind <note-id> --hard - Go back to a previous state
+- notes - See your note history
 
-IMPORTANT: Commit frequently so you have good checkpoints for bisect.
-Each commit message should capture your key decision or insight."""
+IMPORTANT: Take notes frequently so you have good checkpoints for bisect.
+Each note should capture your key decision or insight."""
 
 
 def run_debugging():
@@ -197,8 +197,8 @@ def run_debugging():
     print("DEBUGGING SESSION SUMMARY")
     print("=" * 70)
 
-    print("\n📜 Commit History:")
-    result, _ = store.log(limit=10)
+    print("\n📜 Note History:")
+    result, _ = execute_command(store, "notes")
     for line in result.split("\n"):
         if line.strip():
             print(f"  {line}")

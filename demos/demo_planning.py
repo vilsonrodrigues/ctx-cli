@@ -28,29 +28,27 @@ SYSTEM_PROMPT = """You are a technical architect planning a software project.
 
 You have ctx_cli for exploring and comparing different approaches:
 
-## Planning Strategy with Branches:
+## Planning Strategy with Scopes:
 1. Start on main with project requirements
-2. Create separate branches for each major alternative
-3. Develop each approach in its branch with commits
-4. Use diff to compare branches
-5. Merge the chosen approach to main
+2. Create separate scopes for each major alternative
+3. Develop each approach in its scope with notes
+4. Return to main with findings
 
 ## Example workflow:
-- checkout -b approach-monolith -m "Exploring monolith architecture"
-- commit -m "Monolith: [decision/tradeoff]"
-- checkout -b approach-microservices -m "Exploring microservices"
-- commit -m "Microservices: [decision/tradeoff]"
-- diff approach-monolith - Compare approaches
-- merge approach-microservices - Adopt the chosen approach
+- scope approach-monolith -m "Exploring monolith architecture"
+- note -m "Monolith: [decision/tradeoff]"
+- goto main -m "Monolith analysis complete: [summary]"
+- scope approach-microservices -m "Exploring microservices"
+- note -m "Microservices: [decision/tradeoff]"
+- goto main -m "Microservices analysis complete: [summary]"
 
 ## Best practices:
-- One branch per major alternative
-- Commit pros, cons, and decisions in each branch
-- Use descriptive branch names (approach-X, option-Y)
-- Diff before deciding
-- Tag the final decision
+- One scope per major alternative
+- Take notes on pros, cons, and decisions in each scope
+- Use descriptive scope names (approach-X, option-Y)
+- Always return to main with summary
 
-Think of branches as parallel universes for exploring "what if" scenarios."""
+Think of scopes as parallel universes for exploring "what if" scenarios."""
 
 
 def run_planning():

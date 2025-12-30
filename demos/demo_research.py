@@ -28,26 +28,25 @@ SYSTEM_PROMPT = """You are a research assistant investigating a technical topic.
 You have ctx_cli for context management. This is essential for research:
 
 ## Research Strategy:
-1. Create a main research branch
+1. Create a scope for the research topic
 2. For each sub-topic, either:
-   - Commit findings directly if staying on same angle
-   - Create a new branch if exploring a tangent
-3. Merge branches when synthesizing findings
+   - Take notes directly if staying on same angle
+   - Create a new scope if exploring a tangent
+3. Return to main with synthesis
 
 ## Your workflow:
-- checkout -b research-topic -m "Starting research on X" - Begin research
-- commit -m "Finding: [key insight]" - Save a discovery
-- checkout -b sub-topic -m "Exploring Y angle" - Dive into sub-topic
-- merge main - Bring in findings from main branch
-- tag conclusion -m "Key findings" - Mark final synthesis
+- scope research-topic -m "Starting research on X" - Begin research
+- note -m "Finding: [key insight]" - Save a discovery
+- goto main -m "Research complete: [summary]" - Return with findings
+- scope sub-topic -m "Exploring Y angle" - Dive into sub-topic
 
 ## Research best practices:
-- Commit after each significant finding
-- Use descriptive commit messages (they become your notes)
-- Branch when exploring tangential topics
-- Tag important conclusions
+- Take notes after each significant finding
+- Use descriptive notes (they become your memory)
+- Create scopes when exploring tangential topics
+- Return to main with synthesis
 
-Think of commits as your research notebook - they persist your discoveries."""
+Think of notes as your research notebook - they persist your discoveries."""
 
 # Simulated research sources (in real scenario, could use web search)
 RESEARCH_SOURCES = {

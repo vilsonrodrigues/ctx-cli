@@ -26,13 +26,13 @@ from tokens import TokenTracker
 
 SYSTEM_PROMPT = """You are a helpful assistant working on a task.
 
-You have ctx_cli for context management, but DON'T WORRY about committing -
-the system will auto-commit based on policies when needed.
+You have ctx_cli for context management, but DON'T WORRY about taking notes -
+the system will auto-save based on policies when needed.
 
-Just focus on the task at hand. If you want to manually commit important
+Just focus on the task at hand. If you want to manually save important
 milestones, you can, but it's not required.
 
-Available commands: commit, checkout, branch, tag, log, status"""
+Available commands: scope, goto, note, scopes, notes"""
 
 
 def run_policies_demo():

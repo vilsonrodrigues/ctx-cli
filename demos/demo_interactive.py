@@ -19,37 +19,33 @@ from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
 from tokens import TokenTracker
 
-SYSTEM_PROMPT = """You are an expert software engineer assistant with Git-like context management.
+SYSTEM_PROMPT = """You are an expert software engineer assistant with context management.
 
 You have access to ctx_cli for managing your working memory and episodic memory.
 USE IT PROACTIVELY - don't wait for the context to overflow.
 
 ## When to use ctx_cli:
 
-1. **commit** - After completing any subtask or making a decision
-   Example: commit -m "Decided to use Redis for caching due to X, Y, Z"
+1. **note** - After completing any subtask or making a decision
+   Example: note -m "Decided to use Redis for caching due to X, Y, Z"
 
-2. **checkout -b** - When starting a new distinct task or exploration
-   Example: checkout -b investigate-auth -m "Going to analyze authentication options"
+2. **scope** - When starting a new distinct task or exploration
+   Example: scope investigate-auth -m "Going to analyze authentication options"
 
-3. **tag** - After user approves something or you reach a stable state
-   Example: tag v1-approved -m "User confirmed the database schema"
+3. **goto main** - When returning to main after completing work in a scope
+   Example: goto main -m "Auth analysis complete: recommending JWT"
 
-4. **stash** - When user interrupts with unrelated question
-   Example: stash push -m "Was implementing login flow"
+4. **notes** - To see your notes in current scope
 
-5. **merge** - When returning to main after completing a feature branch
-
-6. **bisect** - When debugging why your reasoning went wrong
+5. **scopes** - To see all scopes
 
 ## Your behavior:
 - Be concise but thorough
-- Commit your reasoning frequently
-- Create branches for distinct tasks
-- Tag important milestones
-- Use stash when interrupted
+- Take notes frequently to save your reasoning
+- Create scopes for distinct tasks
+- Always goto main before starting a new scope
 
-Current token budget awareness is crucial. Commit before context gets too large."""
+Current token budget awareness is crucial. Take notes before context gets too large."""
 
 
 def run_interactive():
@@ -69,8 +65,8 @@ def run_interactive():
     print("=" * 60)
     print("\nCommands:")
     print("  /status  - Show context status")
-    print("  /log     - Show commit history")
-    print("  /branch  - Show branches")
+    print("  /notes   - Show notes in current scope")
+    print("  /scopes  - Show all scopes")
     print("  /tokens  - Show token usage")
     print("  /events  - Show recent events")
     print("  /save    - Save state to file")
@@ -152,12 +148,12 @@ def run_interactive():
                 result, _ = store.status()
                 print(f"\n{result}")
 
-            elif cmd == "/log":
-                result, _ = store.log()
+            elif cmd == "/notes":
+                result, _ = execute_command(store, "notes")
                 print(f"\n{result}")
 
-            elif cmd == "/branch":
-                result, _ = store.branch()
+            elif cmd == "/scopes":
+                result, _ = execute_command(store, "scopes")
                 print(f"\n{result}")
 
             elif cmd == "/tokens":
