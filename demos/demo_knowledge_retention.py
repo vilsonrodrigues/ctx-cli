@@ -119,7 +119,7 @@ PROJECT_B_TASK_BRANCH = """Create a Product model in models/product.py with:
 - is_valid() method that checks all validations
 - to_dict() method for serialization
 
-IMPORTANT: Before starting, use ctx_cli log project-a to recall how you built the User model.
+IMPORTANT: First use 'notes' to recall how you built the User model.
 Apply the same patterns and structure you used there."""
 
 SYSTEM_PROMPT_LINEAR = """You are a software developer.
@@ -128,100 +128,81 @@ Tools: read_file, write_file
 
 Complete the task thoroughly."""
 
-SYSTEM_PROMPT_BRANCH = '''You are a software developer with episodic memory via ctx_cli.
+SYSTEM_PROMPT_BRANCH = '''You are a software developer.
 
 Tools: read_file, write_file, ctx_cli
 
-# MEMORY SYSTEM
+# WHY NOTES MATTER
 
-Your notes are your long-term memory. They persist across projects and sessions.
-When you start a new project, you can recall patterns and decisions from past projects.
+Your context resets between projects. Without notes, you forget everything.
+Notes are your ONLY long-term memory. They persist forever.
 
-## Commands
+When you take good notes:
+- Future projects can recall your patterns and decisions
+- You avoid reinventing solutions you already created
+- Your knowledge compounds across projects
 
-- `ctx_cli scopes`: List all scopes (past projects)
-- `ctx_cli notes <scope>`: Read notes from any scope (recall learnings)
-- `ctx_cli scope <name> -m "<note>"`: Start new scope
-- `ctx_cli note -m "<message>"`: Save knowledge to memory
-- `ctx_cli goto main -m "<summary>"`: Return to main
+When you skip notes:
+- Next project starts from zero
+- You lose all the patterns you established
+- You waste time rediscovering what you already knew
 
-# WORKFLOW FOR NEW PROJECTS
+# COMMANDS (4 total)
 
-## Step 1: CHECK PAST WORK
+scope <name> -m "..."   Create scope. Note saves in CURRENT scope first.
+note -m "..."           Save to memory. Be VERY detailed.
+goto main -m "..."      Return. Note saves in main.
+notes <scope>           Read notes from any scope.
 
-Before starting, check if you have relevant past experience:
+# WORKFLOW (follow exactly, in this order)
 
-```
-ctx_cli scopes
-ctx_cli notes project-a
-```
+1. SCOPE FIRST: scope project-name -m "what I will build"
+   - NEVER read/write files before creating scope
 
-Look for:
-- Similar patterns you established
-- Decisions and their rationale
-- Code structures to reuse
+2. WORK: read files, write code
+   - Do ONLY what was asked, nothing more
 
-## Step 2: CREATE SCOPE
+3. NOTE BEFORE LEAVING: note -m "DETAILED summary"
+   Include: FILES, PATTERNS, DECISIONS, REUSABLE
 
-```
-ctx_cli scope project-b -m "Creating Product model using patterns from project-a"
-```
+4. RETURN AND STOP: goto main -m "done: summary"
+   - After goto main, you are DONE
+   - Do NOT create more scopes or files
+   - Wait for next user instruction
 
-## Step 3: WORK
+# EXAMPLE (Project A: User model)
 
-Apply patterns from past projects.
+scope user-model -m "Creating User dataclass with validation"
 
-## Step 4: NOTE (capture knowledge for future)
+write_file models/user.py [code]
+read_file models/user.py
 
-Write notes that your future self can learn from:
+note -m "FILES: models/user.py
+PATTERNS: dataclass with validation methods
+- validate_email(): checks @ symbol
+- validate_password(): checks min length
+- is_valid(): aggregates all validations
+- to_dict(): converts to dictionary
+DECISIONS: Individual validate_X methods for testability
+REUSABLE: This validation pattern works for any entity"
 
-```
-ctx_cli note -m """
-COMPLETED: Product model with validation
+goto main -m "User model complete with validation pattern"
 
-WHAT WAS BUILT:
-- Product dataclass: id, name, price, stock, created_at, is_available
-- validate_price(): must be positive
-- validate_stock(): must be >= 0
-- is_valid(): checks all validations
-- to_dict(): serialization
+# EXAMPLE (Project B: recalls Project A)
 
-PATTERNS APPLIED (from project-a User model):
-- Dataclass with validation methods
-- Individual validate_X methods for each rule
-- is_valid() aggregates all validations
+notes user-model
+-> Shows the detailed note above
 
-REUSABLE FOR FUTURE:
-- This validation pattern works for any entity model
-"""
-```
+scope product-model -m "Applying User model validation pattern"
 
-## Step 5: RETURN TO MAIN
+write_file models/product.py [using SAME pattern from notes]
 
-```
-ctx_cli goto main -m "Product model complete, same patterns as User model"
-```
+note -m "FILES: models/product.py
+PATTERNS: Same as User model - dataclass with validate_X methods
+APPLIED FROM user-model: validate_X pattern, is_valid(), to_dict()
+REUSABLE: Confirmed this pattern works for any entity"
 
-# EXAMPLE: Cross-Project Memory
-
-User: Create a Product model similar to User model patterns.
-
-[1. RECALL PAST WORK]
-ctx_cli notes project-a
--> Shows: User model with dataclass, email validation, password validation, is_valid(), to_dict()
-
-[2. SCOPE]
-ctx_cli scope project-b -m "Starting: Product model using patterns from User model"
-
-[3. WORK]
-write_file models/product.py [using patterns from project-a]
-read_file models/product.py [verify]
-
-[4. NOTE]
-ctx_cli note -m "Created Product model with same validation pattern as User"
-
-[5. RETURN]
-ctx_cli goto main -m "Product model complete, validated price/stock"
+goto main -m "Product model complete, same pattern as User"
 '''
 
 
@@ -236,7 +217,8 @@ def run_task(
     """Run a single task."""
     client = OpenAI()
     tracker = TokenTracker(model="gpt-4.1-mini")
-    peak_input = 0
+    base_input = 0  # system + tools + user (cacheable by providers)
+    peak_input = 0  # maximum context window size
 
     if store:
         store.add_message(Message(role="user", content=task))
@@ -259,6 +241,11 @@ def run_task(
 
         input_tokens = tracker.update_context(messages)
         tracker.add_input(input_tokens)
+
+        # First call = base (system + tools + user) - cacheable
+        if iteration == 1:
+            base_input = input_tokens
+
         peak_input = max(peak_input, input_tokens)
 
         response = client.chat.completions.create(
@@ -293,17 +280,22 @@ def run_task(
             })
 
         if msg.tool_calls:
+            returned_to_main = False
             for tc in msg.tool_calls:
                 name = tc.function.name
                 args = json.loads(tc.function.arguments)
 
                 if name == "ctx_cli" and store:
-                    result, _ = execute_command(store, args.get("command", ""))
+                    cmd = args.get("command", "")
+                    result, _ = execute_command(store, cmd)
+                    # Check if model returned to main (task complete)
+                    if cmd.startswith("goto main"):
+                        returned_to_main = True
                 else:
                     result = execute_tool(name, args, workdir)
 
                 # Highlight memory access
-                if name == "ctx_cli" and "log" in args.get("command", ""):
+                if name == "ctx_cli" and "notes" in args.get("command", ""):
                     print(f"  [{name}] MEMORY ACCESS: {args.get('command', '')}")
                     print(f"    -> {result[:100]}...")
                 else:
@@ -322,6 +314,11 @@ def run_task(
                         "tool_call_id": tc.id,
                     })
 
+            # Stop when model returns to main (task complete)
+            if returned_to_main:
+                print(f"\n  Completed in {iteration} iterations (returned to main)")
+                break
+
             if store:
                 messages = store.get_context(system_prompt)
         else:
@@ -329,12 +326,14 @@ def run_task(
             break
 
     stats = tracker.get_stats()
+    growth = peak_input - base_input  # Context growth beyond base
     return {
         "task": task_name,
         "iterations": iteration,
-        "total_input": stats["total_input"],
+        "base_input": base_input,      # system + tools + user (cacheable)
+        "peak_input": peak_input,      # maximum context size
+        "growth": growth,              # how much context grew
         "total_output": stats["total_output"],
-        "peak_input": peak_input,
     }, store
 
 
@@ -415,18 +414,40 @@ def run_comparison():
     print("RESULTS")
     print("="*70)
 
-    print(f"\n{'Metric':<40} {'LINEAR':>12} {'SCOPE':>12}")
-    print("-"*65)
-    print(f"{'Project A - Input Tokens':<40} {linear_a['total_input']:>12,} {branch_a['total_input']:>12,}")
-    print(f"{'Project B - Input Tokens':<40} {linear_b['total_input']:>12,} {branch_b['total_input']:>12,}")
-    print(f"{'TOTAL Input Tokens':<40} {linear_a['total_input']+linear_b['total_input']:>12,} {branch_a['total_input']+branch_b['total_input']:>12,}")
-    print(f"{'Project A - Iterations':<40} {linear_a['iterations']:>12} {branch_a['iterations']:>12}")
-    print(f"{'Project B - Iterations':<40} {linear_b['iterations']:>12} {branch_b['iterations']:>12}")
+    # Calculate totals
+    linear_total_output = linear_a['total_output'] + linear_b['total_output']
+    scope_total_output = branch_a['total_output'] + branch_b['total_output']
+
+    print(f"\n{'Metric':<35} {'LINEAR':>12} {'SCOPE':>12}")
+    print("-"*60)
+
+    # Project A
+    print(f"\n{'PROJECT A':<35}")
+    print(f"{'  Base (system+tools+user)':<35} {linear_a['base_input']:>12,} {branch_a['base_input']:>12,}")
+    print(f"{'  Peak Input':<35} {linear_a['peak_input']:>12,} {branch_a['peak_input']:>12,}")
+    print(f"{'  Context Growth':<35} {linear_a['growth']:>12,} {branch_a['growth']:>12,}")
+    print(f"{'  Output':<35} {linear_a['total_output']:>12,} {branch_a['total_output']:>12,}")
+    print(f"{'  Iterations':<35} {linear_a['iterations']:>12} {branch_a['iterations']:>12}")
+
+    # Project B
+    print(f"\n{'PROJECT B':<35}")
+    print(f"{'  Base (system+tools+user)':<35} {linear_b['base_input']:>12,} {branch_b['base_input']:>12,}")
+    print(f"{'  Peak Input':<35} {linear_b['peak_input']:>12,} {branch_b['peak_input']:>12,}")
+    print(f"{'  Context Growth':<35} {linear_b['growth']:>12,} {branch_b['growth']:>12,}")
+    print(f"{'  Output':<35} {linear_b['total_output']:>12,} {branch_b['total_output']:>12,}")
+    print(f"{'  Iterations':<35} {linear_b['iterations']:>12} {branch_b['iterations']:>12}")
+
+    # Summary
+    print(f"\n{'SUMMARY':<35}")
+    print(f"{'  Total Base (cacheable)':<35} {linear_a['base_input']+linear_b['base_input']:>12,} {branch_a['base_input']+branch_b['base_input']:>12,}")
+    print(f"{'  Total Growth':<35} {linear_a['growth']+linear_b['growth']:>12,} {branch_a['growth']+branch_b['growth']:>12,}")
+    print(f"{'  Total Output':<35} {linear_total_output:>12,} {scope_total_output:>12,}")
+    print(f"{'  Max Peak':<35} {max(linear_a['peak_input'], linear_b['peak_input']):>12,} {max(branch_a['peak_input'], branch_b['peak_input']):>12,}")
 
     print("\n" + "="*70)
     print("KEY OBSERVATION:")
-    print("Watch for 'MEMORY ACCESS' in Scope approach - the agent recalls")
-    print("how it built Project A before starting Project B.")
+    print("Project B in SCOPE approach accesses notes from Project A before")
+    print("starting work. Look for 'MEMORY ACCESS' in the output above.")
     print("="*70)
 
 
