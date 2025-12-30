@@ -1,0 +1,5 @@
+# Data files (large, downloaded separately)
+data/
+
+# Results (generated, vary by run)
+results/
