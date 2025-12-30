@@ -4,13 +4,13 @@ We presented explicit context management, a lightweight approach to handling con
 
 The key technical contribution is **scope isolation with attention masking**: messages are partitioned into scopes, and only current-scope messages are visible to the model during API calls. Notes provide compressed episodic memory that persists within scopes, enabling knowledge retention without unbounded context growth.
 
-Our experiments demonstrate:
-- **68% reduction** in total input tokens on multi-step coding tasks
-- **73% lower peak context** per API call
-- **Successful knowledge transfer** across project boundaries
-- **Clean alternative exploration** through parallel scopes
+Our experiments on SWE-Bench-CL (sequential tasks) and SWE-Bench Lite (isolated tasks) demonstrate:
+- **88% reduction in peak context** (12,059 → 1,402 tokens) for sequential tasks
+- **34% faster execution** (121.5s → 80.5s) with bounded context growth
+- **Successful knowledge transfer** across task sequences
+- **Trade-off clarity**: SCOPE excels for sequential tasks, LINEAR for isolated tasks
 
-These results are achieved with **no fine-tuning**, **no reinforcement learning**, and **no model modifications**—only a tool interface that works with any model supporting function calling.
+These results are achieved with **no fine-tuning**, **no reinforcement learning**, and **no model modifications**—only a tool interface that works with any model supporting function calling. Critically, we identify when explicit context management provides value: **when context accumulates across multiple related steps**.
 
 ## Contributions
 

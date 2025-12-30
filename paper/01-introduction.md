@@ -6,9 +6,9 @@ Yet a fundamental tension undermines this promise: **context windows are finite,
 
 ## 1.1 The Context Growth Problem
 
-Consider an agent tasked with developing a software feature across multiple files. Each step requires understanding prior decisions: why this architecture was chosen, what constraints were discovered, what patterns emerged. In a traditional agent loop, every interaction persists in context.
+Consider an agent tasked with resolving a sequence of GitHub issues in a codebase. Each issue builds on knowledge from previous fixes: code patterns discovered, API conventions learned, architectural constraints identified. In a traditional agent loop, every interaction persists in context.
 
-For a 12-step coding task, we observe context sizes reaching 23,000+ tokens per API call, with cumulative input exceeding 430,000 tokens. As context grows:
+For a sequence of 15 coding tasks from SWE-Bench-CL [20], we observe context growing to 12,000+ tokens by the final task, with linear approaches accumulating context at ~780 tokens per task. As context grows:
 
 1. **Token costs scale** linearly with context size
 2. **Latency increases** as models process longer inputs
@@ -79,7 +79,7 @@ This paper makes the following contributions:
 
 3. **Asymmetric note placement semantics.** We identify that transition notes should be placed in the origin scope (for `scope`) or destination scope (for `goto`) to prevent reasoning discontinuities.
 
-4. **Empirical validation of token economics.** We demonstrate 68% reduction in total input tokens and 73% lower peak context on multi-step coding tasks, with identical task completion.
+4. **Empirical validation of token economics.** We demonstrate 88% reduction in peak context (12,059 → 1,402 tokens) and 34% faster execution on sequential coding tasks from SWE-Bench-CL [20], while identifying that isolated tasks favor linear approaches.
 
 5. **An open-source implementation** that integrates with any tool-use capable model through standard interfaces.
 
