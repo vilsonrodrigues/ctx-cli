@@ -137,6 +137,9 @@ Key commands:
                             content=result,
                             tool_call_id=tool_call.id,
                         ))
+
+                # Refresh context after tool calls
+                context = store.get_context(system_prompt)
             else:
                 store.add_message(Message(
                     role="assistant",
