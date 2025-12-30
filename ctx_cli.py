@@ -28,81 +28,51 @@ CTX_CLI_TOOL = {
     "type": "function",
     "function": {
         "name": "ctx_cli",
-        "description": """Semantic context/memory management. Manages your MEMORY, not files.
+        "description": """Context management for LLM reasoning. Manages your MEMORY, not files.
 
-IMPORTANT: Files are on DISK. Scopes are in MEMORY. Switching scopes does NOT change files.
+WHY USE THIS:
+- Notes persist even when chat messages are cleared
+- Isolate reasoning paths to avoid confusion
+- Return to main with learnings preserved
 
-CORE COMMANDS (with git equivalent):
+CORE COMMANDS (4 total):
 
-  scope <path> -m "<note>"          [≈ git checkout -b]
-    Enter a new scope (line of reasoning). Creates isolated memory space.
-    Example: ctx_cli scope step-2-repository -m "Building JSON persistence layer"
+  scope <name> -m "<note>"
+    Create new reasoning scope. Note stays in CURRENT scope (explains why you're leaving).
+    Example: ctx_cli scope investigate-bug -m "Going to investigate the auth bug. Expect to find DB issue."
 
-  goto <path> -m "<note>"           [≈ git checkout]
-    Switch to an existing scope.
-    Example: ctx_cli goto step-1 -m "Checking what was done"
+  goto <name> -m "<note>"
+    Switch to existing scope. Note goes to DESTINATION scope (explains what you bring/conclude).
+    Example: ctx_cli goto main -m "Found bug: race condition in save(). Fix: add mutex."
 
-  note -m "<message>"               [≈ git commit]
-    Record what you learned (episodic memory). CRITICAL: Write detailed notes!
-    Good notes include: what was built, key decisions, patterns, files, next steps.
-    Example: ctx_cli note -m "COMPLETED: TaskRepository with atomic writes..."
+  note -m "<message>"
+    Record learning in current scope. Be DETAILED: motives, objectives, results, conclusions.
+    Example: ctx_cli note -m "Discovered: TaskRepo uses JSON. Files: task_repository.py. Pattern: atomic writes."
 
-  paths                             [≈ git branch]
-    List all your scopes (lines of reasoning).
-    Example: ctx_cli paths
+  scopes
+    List all scopes.
+    Example: ctx_cli scopes
 
-  trace [path]                      [≈ git log]
-    See the history of notes in a scope. Use to review past reasoning.
-    Example: ctx_cli trace step-1
-    Example: ctx_cli trace  (current scope)
-
-  finish -m "<summary>"             [≈ git checkout main]
-    Complete current scope and return to main with knowledge transfer.
-    Example: ctx_cli finish -m "Completed: Repository pattern implemented..."
-
-OTHER COMMANDS (with git equivalent):
-
-  anchor <name> -m "<description>"  [≈ git tag]
-    Create an immutable marker (fixed truth). Cannot be deleted.
-    Example: ctx_cli anchor v1-approved -m "User approved the architecture"
-
-  pause -m "<message>"              [≈ git stash]
-    Archive current work temporarily (when interrupted).
-    Example: ctx_cli pause -m "User asked about something else"
-
-  resume [id]                       [≈ git stash pop]
-    Resume archived work.
-    Example: ctx_cli resume
-
-  delta <path>                      [≈ git diff]
-    Compare current scope with another scope's notes.
-    Example: ctx_cli delta step-1
-
-  rewind [note-id] [--hard]         [≈ git reset]
-    Go back to a previous note. --hard clears working messages.
-    Example: ctx_cli rewind abc123 --hard
-
-  extract <note-id>                 [≈ git cherry-pick]
-    Apply a specific note from any scope to current scope.
-    Example: ctx_cli extract abc123
-
-  sync <path> -m "<message>"        [≈ git merge]
-    Bring notes from another scope into current scope.
-    Example: ctx_cli sync feature-auth -m "Completed auth implementation"
+  notes
+    List notes in current scope.
+    Example: ctx_cli notes
 
 WORKFLOW:
-1. scope <path> -m "what I'll do"
-2. Do the work (read/write files)
-3. note -m "detailed knowledge summary"
-4. finish -m "knowledge to carry forward"
+  scope step-1 -m "Starting step 1: will create Task model"
+  [work]
+  note -m "Created Task with id, title, done. File: models/task.py"
+  goto main -m "Step 1 complete: Task model ready at models/task.py"
 
-REMEMBER: Files persist on disk regardless of scope. Don't switch scopes to find files.""",
+RULES:
+- Files are on DISK, scopes are in MEMORY. Switching scopes does NOT change files.
+- ALWAYS use -m with scope and goto. No transitions without explanation.
+- Write DETAILED notes: motives, objectives, what you found, conclusions.""",
         "parameters": {
             "type": "object",
             "properties": {
                 "command": {
                     "type": "string",
-                    "description": "The ctx_cli command (e.g., 'begin step-1 -m \"note\"', 'note -m \"what I learned\"')"
+                    "description": "The ctx_cli command"
                 }
             },
             "required": ["command"]
@@ -173,8 +143,9 @@ class ParsedCommand:
     """Result of parsing a ctx_cli command."""
 
     action: Literal[
-        # New semantic commands
-        "begin", "goto", "note", "paths", "trace", "return",
+        # Core semantic commands
+        "scope", "goto", "note", "scopes", "notes",
+        # Legacy/other commands
         "anchor", "pause", "resume", "delta", "rewind", "extract", "sync",
         # Internal actions (mapped from semantic commands)
         "commit", "checkout", "branch", "log", "tag", "stash",
@@ -216,10 +187,10 @@ def parse_command(command: str) -> ParsedCommand:
     action = tokens[0].lower()
 
     # -------------------------------------------------------------------------
-    # scope <path> -m "note" - Enter new scope (line of reasoning)
+    # scope <name> -m "note" - Create new scope, note stays in CURRENT (origin)
     # -------------------------------------------------------------------------
     if action == "scope":
-        path_name = None
+        scope_name = None
         note = None
         i = 1
 
@@ -227,36 +198,39 @@ def parse_command(command: str) -> ParsedCommand:
             if tokens[i] == "-m" and i + 1 < len(tokens):
                 note = tokens[i + 1]
                 i += 2
-            elif not path_name and not tokens[i].startswith("-"):
-                path_name = tokens[i]
+            elif not scope_name and not tokens[i].startswith("-"):
+                scope_name = tokens[i]
                 i += 1
             else:
                 i += 1
 
-        if not path_name:
+        if not scope_name:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="scope requires path name. Example: scope step-1 -m \"note\""
+                error="scope requires name. Example: scope step-1 -m \"why I'm creating this\""
             )
 
         if not note:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="scope requires -m \"note\". Example: scope step-1 -m \"what I'll do\""
+                error="scope requires -m \"note\". Explain WHY you're creating this scope."
             )
 
+        # Returns "scope" action - executor will:
+        # 1. commit note to CURRENT branch
+        # 2. then checkout to new branch
         return ParsedCommand(
-            action="checkout",
-            args={"branch": path_name, "note": note, "create": True}
+            action="scope",
+            args={"name": scope_name, "note": note}
         )
 
     # -------------------------------------------------------------------------
-    # goto <path> -m "note" - Switch to existing scope
+    # goto <name> -m "note" - Switch to scope, note goes to DESTINATION
     # -------------------------------------------------------------------------
     if action == "goto":
-        path_name = None
+        scope_name = None
         note = None
         i = 1
 
@@ -264,29 +238,32 @@ def parse_command(command: str) -> ParsedCommand:
             if tokens[i] == "-m" and i + 1 < len(tokens):
                 note = tokens[i + 1]
                 i += 2
-            elif not path_name and not tokens[i].startswith("-"):
-                path_name = tokens[i]
+            elif not scope_name and not tokens[i].startswith("-"):
+                scope_name = tokens[i]
                 i += 1
             else:
                 i += 1
 
-        if not path_name:
+        if not scope_name:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="goto requires path name. Example: goto step-1 -m \"note\""
+                error="goto requires scope name. Example: goto main -m \"what I bring/conclude\""
             )
 
         if not note:
             return ParsedCommand(
                 action="error",
                 args={},
-                error="goto requires -m \"note\". Example: goto step-1 -m \"continuing work\""
+                error="goto requires -m \"note\". Explain what you bring to the destination."
             )
 
+        # Returns "goto" action - executor will:
+        # 1. checkout to destination branch
+        # 2. commit note to DESTINATION branch
         return ParsedCommand(
-            action="checkout",
-            args={"branch": path_name, "note": note, "create": False}
+            action="goto",
+            args={"name": scope_name, "note": note}
         )
 
     # -------------------------------------------------------------------------
@@ -312,42 +289,26 @@ def parse_command(command: str) -> ParsedCommand:
         return ParsedCommand(action="commit", args={"message": message})
 
     # -------------------------------------------------------------------------
-    # paths - List all paths
+    # scopes - List all scopes
     # -------------------------------------------------------------------------
+    if action == "scopes":
+        return ParsedCommand(action="scopes", args={})
+
+    # -------------------------------------------------------------------------
+    # notes [scope] - List notes in scope (default: current)
+    # -------------------------------------------------------------------------
+    if action == "notes":
+        scope_name = tokens[1] if len(tokens) > 1 else None
+        return ParsedCommand(action="notes", args={"scope": scope_name})
+
+    # Legacy: paths -> scopes
     if action == "paths":
-        return ParsedCommand(action="branch", args={"name": None})
+        return ParsedCommand(action="scopes", args={})
 
-    # -------------------------------------------------------------------------
-    # trace [path] - See history of notes
-    # -------------------------------------------------------------------------
+    # Legacy: trace -> notes (for viewing other scopes, use notes <scope>)
     if action == "trace":
-        path_name = tokens[1] if len(tokens) > 1 else None
-        return ParsedCommand(action="log", args={"branch": path_name})
-
-    # -------------------------------------------------------------------------
-    # finish -m "summary" - Complete scope and return to main
-    # -------------------------------------------------------------------------
-    if action == "finish":
-        summary = None
-        i = 1
-        while i < len(tokens):
-            if tokens[i] == "-m" and i + 1 < len(tokens):
-                summary = tokens[i + 1]
-                i += 2
-            else:
-                i += 1
-
-        if not summary:
-            return ParsedCommand(
-                action="error",
-                args={},
-                error="finish requires -m \"summary\". What knowledge to carry forward?"
-            )
-
-        return ParsedCommand(
-            action="checkout",
-            args={"branch": "main", "note": summary, "create": False}
-        )
+        scope_name = tokens[1] if len(tokens) > 1 else None
+        return ParsedCommand(action="notes", args={"scope": scope_name})
 
     # -------------------------------------------------------------------------
     # anchor <name> -m "description" - Create immutable marker
@@ -721,7 +682,7 @@ def parse_command(command: str) -> ParsedCommand:
     return ParsedCommand(
         action="error",
         args={},
-        error=f"Unknown command: {action}. Use: scope, goto, note, paths, trace, finish"
+        error=f"Unknown command: {action}. Use: scope, goto, note, scopes, notes"
     )
 
 
@@ -740,6 +701,72 @@ def execute_command(store: ContextStore, command: str) -> tuple[str, Event | Non
 
     if parsed.action == "error":
         return f"Error: {parsed.error}", None
+
+    # =========================================================================
+    # Core semantic commands
+    # =========================================================================
+
+    if parsed.action == "scope":
+        # scope: note goes to CURRENT (origin), then create new scope
+        scope_name = parsed.args["name"]
+        note = parsed.args["note"]
+
+        # 1. Commit note to CURRENT branch (explains why leaving)
+        from_branch = store.current_branch
+        commit_result, commit_event = store.commit(f"[→ {scope_name}] {note}")
+
+        # 2. Create and switch to new scope
+        checkout_result, checkout_event = store.checkout(scope_name, "", create=True)
+
+        if "error" in checkout_result.lower():
+            return checkout_result, None
+
+        return f"Created scope '{scope_name}' (note saved in '{from_branch}')", checkout_event
+
+    if parsed.action == "goto":
+        # goto: switch to destination, then add note there
+        scope_name = parsed.args["name"]
+        note = parsed.args["note"]
+        from_branch = store.current_branch
+
+        # 1. Switch to destination
+        checkout_result, checkout_event = store.checkout(scope_name, "", create=False)
+
+        if "error" in checkout_result.lower():
+            return checkout_result, None
+
+        # 2. Commit note to DESTINATION branch (what we bring/conclude)
+        commit_result, commit_event = store.commit(f"[← {from_branch}] {note}")
+
+        return f"Switched to '{scope_name}' (note saved)", commit_event
+
+    if parsed.action == "scopes":
+        # List all scopes
+        lines = []
+        for scope_name, branch in store.branches.items():
+            prefix = "* " if scope_name == store.current_branch else "  "
+            note_count = len(branch.commits)
+            lines.append(f"{prefix}{scope_name} ({note_count} notes)")
+        return "\n".join(lines) if lines else "No scopes yet.", None
+
+    if parsed.action == "notes":
+        # List notes in a scope
+        scope_name = parsed.args.get("scope") or store.current_branch
+        if scope_name not in store.branches:
+            return f"Error: scope '{scope_name}' not found.", None
+
+        branch = store.branches[scope_name]
+        if not branch.commits:
+            return f"No notes in '{scope_name}' yet.", None
+
+        lines = [f"Notes in '{scope_name}':\n"]
+        for commit in branch.commits:
+            lines.append(f"  [{commit.hash[:7]}] {commit.message}")
+        return "\n".join(lines), None
+
+    # =========================================================================
+    # Legacy/internal commands
+    # =========================================================================
 
     if parsed.action == "commit":
         return store.commit(parsed.args["message"])

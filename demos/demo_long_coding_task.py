@@ -248,224 +248,30 @@ Instructions:
 - Create proper project structure with directories
 - Complete each step thoroughly"""
 
-SYSTEM_PROMPT_BRANCH = '''You are a software developer with semantic memory management via ctx_cli.
+SYSTEM_PROMPT_BRANCH = '''You are a software developer.
 
-Tools: bash, read_file, write_file, list_files, plan, ctx_cli
+Tools: bash, read_file, write_file, list_files, ctx_cli
 
-# MEMORY SYSTEM
+# WORKFLOW (follow exactly)
 
-CRITICAL DISTINCTION:
-- **Paths** = Your MEMORY (lines of reasoning). ctx_cli manages this.
-- **Files** = On DISK (code you wrote). Persist independently of paths.
+When you receive a step:
 
-Switching paths does NOT change files on disk. If a file doesn't exist, CREATE it - don't switch paths looking for it.
+1. FIRST: ctx_cli scope step-N -m "what I'll do"
+2. THEN: read files, write code
+3. THEN: ctx_cli note -m "files: X, patterns: Y, decisions: Z"
+4. LAST: ctx_cli goto main -m "done: summary"
 
-Your notes are episodic memory - they persist even when chat messages are cleared.
-Without good notes, you LOSE knowledge between tasks.
+# COMMANDS
 
-## Commands
+scope <name> -m "..."   Start isolated work. Note saves HERE before leaving.
+note -m "..."           Record what you learned. Be detailed.
+goto main -m "..."      Return with results. Note saves in main.
 
-- `ctx_cli paths`: List all scopes (your lines of reasoning)
-- `ctx_cli trace [path]`: See notes from a scope (recall what you learned)
-- `ctx_cli scope <name> -m "<note>"`: Enter new scope
-- `ctx_cli note -m "<message>"`: Record episodic memory
-- `ctx_cli finish -m "<summary>"`: Complete scope and return to main
+# RULES
 
-# WORKFLOW (MANDATORY)
-
-## Step 1: PLAN (before any work)
-
-ALWAYS call the plan tool first. Structure your thinking:
-
-```
-plan(content="""
-TASK: [What needs to be done]
-DEPENDENCIES: [What previous work this builds on]
-APPROACH:
-1. [First action]
-2. [Second action]
-3. [Verification step]
-PATH NAME: [descriptive-name]
-""")
-```
-
-## Step 2: REVIEW (recall past knowledge)
-
-Before starting, check what you learned in previous steps:
-
-```
-ctx_cli trace step-1
-```
-
-Read the notes carefully. They contain:
-- What was built
-- Key decisions made
-- Patterns established
-- Files created/modified
-
-## Step 3: SCOPE (enter your scope)
-
-```
-ctx_cli scope step-2-repository -m "Building JSON persistence layer for Task model"
-```
-
-The note should explain WHAT you're about to do.
-
-## Step 4: WORK
-
-Do the actual work: read files, write code, verify.
-
-## Step 5: NOTE (CRITICAL - your future memory)
-
-Your note IS your memory. Write it as if explaining to yourself in the future who has NO access to the chat.
-
-### Note Format
-
-```
-ctx_cli note -m """
-COMPLETED: [One-line summary]
-
-WHAT WAS BUILT:
-- [Component 1]: [what it does]
-- [Component 2]: [what it does]
-
-KEY DECISIONS:
-- [Decision 1]: [why this choice]
-- [Decision 2]: [why this choice]
-
-PATTERNS ESTABLISHED:
-- [Pattern]: [how to reuse it]
-
-FILES:
-- [path/file.py]: [purpose]
-
-NEXT STEPS:
-- [What logically follows]
-"""
-```
-
-### BAD vs GOOD Notes
-
-BAD: "Created TaskRepository"
-- No details, useless for recall
-
-GOOD: """
-COMPLETED: TaskRepository with JSON persistence
-
-WHAT WAS BUILT:
-- TaskRepository class: CRUD operations for Task objects
-- Uses JSON file storage with atomic writes (temp file + rename)
-- Methods: save(task), get(id), list_all(), update(task), delete(id)
-
-KEY DECISIONS:
-- Atomic writes prevent corruption on crash
-- Single JSON file (not one per task) for simplicity
-- ISO format for datetime serialization
-
-PATTERNS ESTABLISHED:
-- Repository pattern: separate storage from business logic
-- All repos should use atomic writes
-
-FILES:
-- repositories/task_repository.py: Repository implementation
-- Uses models/task.py Task dataclass
-
-NEXT STEPS:
-- TaskService will use this for business logic
-"""
-
-## Step 6: FINISH (complete scope, transfer knowledge)
-
-```
-ctx_cli finish -m """
-COMPLETED step-2: TaskRepository
-
-KNOWLEDGE TO CARRY FORWARD:
-- Repository pattern established in repositories/
-- Atomic writes pattern for file persistence
-- Task model is in models/task.py with TaskStatus enum
-
-READY FOR:
-- Step 3 can now build TaskService using TaskRepository
-"""
-```
-
-The summary is what you'll see when you start the next task. Make it useful.
-
-# EXAMPLE
-
-User: Step 2: Create TaskRepository for JSON persistence.
-
-[1. PLAN]
-plan(content="""
-TASK: Create TaskRepository for persisting Task objects to JSON
-DEPENDENCIES: Task dataclass from step-1
-APPROACH:
-1. Read models/task.py to understand Task structure
-2. Create repositories/task_repository.py with CRUD methods
-3. Use atomic writes for safety
-4. Verify by reading the file back
-PATH NAME: step-2-repository
-""")
-
-[2. REVIEW]
-ctx_cli trace step-1
--> [abc123] COMPLETED: Task model with validation...
-
-[3. SCOPE]
-ctx_cli scope step-2-repository -m "Building JSON persistence for Task model"
-
-[4. WORK]
-read_file models/task.py
-write_file repositories/task_repository.py [implementation]
-read_file repositories/task_repository.py [verify]
-
-[5. NOTE]
-ctx_cli note -m """
-COMPLETED: TaskRepository with JSON persistence
-
-WHAT WAS BUILT:
-- TaskRepository: save/get/list_all/update/delete methods
-- Atomic writes via tempfile + os.rename
-
-KEY DECISIONS:
-- Single tasks.json file, not per-task files
-- ISO 8601 for datetime serialization
-
-PATTERNS:
-- Repository pattern separates storage concerns
-- Atomic write pattern for crash safety
-
-FILES:
-- repositories/task_repository.py
-"""
-
-[6. FINISH]
-ctx_cli finish -m """
-COMPLETED step-2: TaskRepository ready
-
-CARRY FORWARD:
-- Repository at repositories/task_repository.py
-- Uses atomic writes pattern
-- Ready for TaskService to add business logic
-"""
-
-# COMMON MISTAKES - DO NOT DO THESE
-
-1. DON'T switch scopes to find files
-   - Files are on disk, not in scopes
-   - If file not found: CREATE it, don't goto other scopes
-
-2. DON'T scope the same path repeatedly
-   - If scope exists and you got an error, use 'goto' instead
-   - If you're already in the scope, just work
-
-3. DON'T skip the plan tool
-   - Plan FIRST, then scope, then work
-
-4. DON'T write vague notes
-   - Bad: "Done with step 2"
-   - Good: Detailed what was built, decisions, patterns, files
+- ALWAYS start with scope. No reading/writing before scope.
+- Files on DISK, scopes in MEMORY. Switching scope does NOT affect files.
+- Write detailed notes: they are your memory.
 '''
 
 
@@ -498,7 +304,7 @@ def run_approach(
         ]
 
     step_idx = 0
-    max_iterations = 50  # Safety limit (reduced for testing)
+    max_iterations = 500  # Allow completion
     iteration = 0
 
     print(f"\n{'='*60}")
@@ -547,6 +353,7 @@ def run_approach(
             })
 
         # Handle tool calls
+        step_completed = False
         if msg.tool_calls:
             for tc in msg.tool_calls:
                 name = tc.function.name
@@ -554,9 +361,13 @@ def run_approach(
 
                 # Execute tool
                 if name == "ctx_cli" and store:
-                    result, _ = execute_command(store, args.get("command", ""))
+                    cmd = args.get("command", "")
+                    result, _ = execute_command(store, cmd)
+                    # Detect step completion: goto main signals step is done
+                    if cmd.startswith("goto main"):
+                        step_completed = True
                 elif name == "plan":
-                    result = "Plan recorded. Now proceed with: ctx_cli checkout -b <branch> -m <note>"
+                    result = "Plan recorded. Now proceed with: ctx_cli scope <name> -m <note>"
                 else:
                     result = execute_tool(name, args, workdir)
 
@@ -579,6 +390,18 @@ def run_approach(
             # Refresh context if using store
             if store:
                 messages = store.get_context(system_prompt)
+
+            # If step was completed via goto main, advance to next step
+            if step_completed:
+                step_idx += 1
+                if step_idx < len(steps):
+                    print(f"\n  [Step {step_idx + 1}/{len(steps)}]")
+                    next_step = steps[step_idx]
+                    store.add_message(Message(role="user", content=next_step))
+                    messages = store.get_context(system_prompt)
+                else:
+                    print(f"\n  All {len(steps)} steps completed!")
+                    break
         else:
             # No tool calls - step likely complete
             step_idx += 1
@@ -631,7 +454,7 @@ def run_comparison(num_steps: int = 6):
                 approach="BRANCH (ctx_cli)",
                 steps=steps,
                 system_prompt=SYSTEM_PROMPT_BRANCH,
-                tools=[BASH_TOOL, READ_FILE_TOOL, WRITE_FILE_TOOL, LIST_FILES_TOOL, PLAN_TOOL, CTX_CLI_TOOL],
+                tools=[BASH_TOOL, READ_FILE_TOOL, WRITE_FILE_TOOL, LIST_FILES_TOOL, CTX_CLI_TOOL],
                 workdir=tmpdir_branch,
                 use_ctx=True,
             )
