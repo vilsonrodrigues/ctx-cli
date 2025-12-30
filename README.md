@@ -8,84 +8,173 @@ Long-running LLM agents face context window limits. When context is truncated, t
 
 ## The Solution
 
-Give the model a memory system:
-- **Scopes** = Isolated reasoning spaces (like mental workspaces)
-- **Notes** = Episodic memory (what the model learned/decided)
-- **Transitions** = Explicit context switches with explanations
+Give the model a memory system with **scope isolation** and **episodic notes**:
 
-The model manages its own context via `ctx_cli`, a single tool with 4 core commands.
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           CONTEXT STORE                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                 │
+│   │    main     │    │   step-1    │    │   step-2    │                 │
+│   ├─────────────┤    ├─────────────┤    ├─────────────┤                 │
+│   │ notes:      │    │ notes:      │    │ notes:      │                 │
+│   │  [→ step-1] │    │  [abc123]   │    │  [def456]   │                 │
+│   │  [← step-1] │    │  Task model │    │  Repository │                 │
+│   │  [→ step-2] │    │             │    │             │                 │
+│   │  [← step-2] │    ├─────────────┤    ├─────────────┤                 │
+│   ├─────────────┤    │ messages:   │    │ messages:   │                 │
+│   │ messages:   │    │  (cleared)  │    │  (cleared)  │                 │
+│   │  User: next │    │             │    │             │                 │
+│   │  Asst: ok   │    └─────────────┘    └─────────────┘                 │
+│   └─────────────┘                                                        │
+│         ▲                                                                │
+│         │ current_scope = "main"                                         │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
 
-## How It Works
+## Message Visibility (Attention Mask)
+
+When you switch scopes, only messages from the **current scope** are visible:
+
+```
+SCOPE: main                          SCOPE: step-1
+┌─────────────────────────────┐      ┌─────────────────────────────┐
+│ messages:                   │      │ messages:                   │
+│  ■ User: start task        │      │  □ User: start task        │  ← hidden
+│  ■ Asst: creating scope    │      │  □ Asst: creating scope    │  ← hidden
+│  ■ [tool] scope step-1     │      │  □ [tool] scope step-1     │  ← hidden
+│  □ User: read the file     │      │  ■ User: read the file     │  ← visible
+│  □ Asst: file contains...  │      │  ■ Asst: file contains...  │  ← visible
+│  □ [tool] note -m "..."    │      │  ■ [tool] note -m "..."    │  ← visible
+│  □ [tool] goto main        │      │  □ [tool] goto main        │  ← hidden
+│  ■ User: next step         │      │  □ User: next step         │  ← hidden
+└─────────────────────────────┘      └─────────────────────────────┘
+  ■ = visible in this scope            ■ = visible in this scope
+  □ = hidden (other scope)             □ = hidden (other scope)
+```
+
+## Notes Persist Across Scopes
+
+Notes are **always visible** in their scope, even when messages are cleared:
+
+```
+After completing step-1 and step-2, messages cleared:
+
+SCOPE: main (current)
+┌────────────────────────────────────────────────────────────────┐
+│ NOTES (persistent):                                            │
+│   [→ step-1] Creating Task model                               │
+│   [← step-1] Task model complete: id, title, done, created_at  │
+│   [→ step-2] Creating TaskRepository                           │
+│   [← step-2] Repository complete with CRUD operations          │
+├────────────────────────────────────────────────────────────────┤
+│ MESSAGES (working memory):                                     │
+│   User: Now let's create the service layer                     │
+│   Assistant: I'll create TaskService...                        │
+└────────────────────────────────────────────────────────────────┘
+
+Total context = Notes + Current Messages (not all historical messages)
+```
+
+## Context Window Composition
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Context Window                          │
+│                     API Request Context                      │
 ├─────────────────────────────────────────────────────────────┤
-│  System Prompt (fixed)                                      │
+│  1. System Prompt (fixed)                          ~500 tk  │
 ├─────────────────────────────────────────────────────────────┤
-│  Transition Note: [← step-1] Task model complete            │
+│  2. Transition Note (if just switched scope)       ~50 tk   │
+│     [← step-1] Task model complete                          │
 ├─────────────────────────────────────────────────────────────┤
-│  Notes (episodic memory):                                   │
-│    - [abc123] Created Task with id, title, done             │
-│    - [def456] Added validation for required fields          │
+│  3. All Notes in Current Scope                     ~200 tk  │
+│     [abc123] Created Task with id, title, done              │
+│     [def456] Added validation for required fields           │
 ├─────────────────────────────────────────────────────────────┤
-│  Working Messages:                                          │
-│    User: Now create the repository                          │
-│    Assistant: I'll create TaskRepository...                 │
+│  4. Working Messages (only current scope)          ~1000 tk │
+│     User: Now create the repository                         │
+│     Assistant: I'll create TaskRepository...                │
+│     [tool result] ...                                       │
+├─────────────────────────────────────────────────────────────┤
+│  TOTAL: ~1750 tokens (vs ~8000+ in linear approach)         │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Key insight:
-- `scope` note explains WHY you're leaving current scope
-- `goto` note explains WHAT you bring to destination
-- This prevents "mental gaps" when switching contexts
+## Commands (4 total)
 
-## Commands
+| Command | Description | Note Placement |
+|---------|-------------|----------------|
+| `scope <name> -m "why"` | Create new scope | Note stays in **ORIGIN** |
+| `goto <name> -m "result"` | Switch to scope | Note goes to **DESTINATION** |
+| `note -m "what"` | Save learning | Current scope |
+| `scopes` / `notes` | List scopes/notes | - |
 
-### Core Commands (4 total)
-
-| Command | Description |
-|---------|-------------|
-| `scope <name> -m "why"` | Create new scope. Note stays in CURRENT (origin). |
-| `goto <name> -m "result"` | Switch to scope. Note goes to DESTINATION. |
-| `note -m "what"` | Save learning in current scope. Be detailed! |
-| `scopes` | List all scopes |
-| `notes [scope]` | Show notes in scope (default: current) |
-
-### Example Workflow
+## Workflow Example
 
 ```
-[in main]
-ctx_cli scope step-1 -m "Creating Task model"     # main gets this note
-[work: read files, write code]
-ctx_cli note -m "Created Task: id, title, done"   # step-1 gets this note
-ctx_cli goto main -m "Task model complete"        # main gets this note
-[back in main, ready for next step]
-```
+                    ┌─────────────────────────────────────┐
+                    │              main                    │
+                    │                                     │
+  ──────────────────┼─────────────────────────────────────┼──────────────────
+                    │                                     │
+  Step 1:           │  [→ step-1] Creating Task model     │
+  scope step-1      │           │                         │
+                    │           ▼                         │
+                    │    ┌─────────────┐                  │
+                    │    │   step-1    │                  │
+                    │    │             │                  │
+                    │    │ [abc] Task  │                  │
+                    │    │   created   │                  │
+                    │    └──────┬──────┘                  │
+                    │           │                         │
+  Step 2:           │           │ goto main               │
+  goto main         │  [← step-1] Task complete           │
+                    │                                     │
+  ──────────────────┼─────────────────────────────────────┼──────────────────
+                    │                                     │
+  Step 3:           │  [→ step-2] Creating Repository     │
+  scope step-2      │           │                         │
+                    │           ▼                         │
+                    │    ┌─────────────┐                  │
+                    │    │   step-2    │                  │
+                    │    │             │                  │
+                    │    │ [def] Repo  │                  │
+                    │    │   created   │                  │
+                    │    └──────┬──────┘                  │
+                    │           │                         │
+  Step 4:           │           │ goto main               │
+  goto main         │  [← step-2] Repository complete     │
+                    │                                     │
+  ──────────────────┴─────────────────────────────────────┴──────────────────
 
-### Result in main:
-
+  Result: main has complete history of transitions and outcomes
 ```
-[→ step-1] Creating Task model
-[← step-1] Task model complete
-[→ step-2] Creating TaskRepository
-[← step-2] Repository with atomic writes
-...
-```
-
-Main always knows: why you left, what you brought back.
 
 ## Token Economics
 
 **12-step coding task comparison:**
 
-| Metric | LINEAR | BRANCH | Improvement |
-|--------|--------|--------|-------------|
+| Metric | LINEAR | SCOPE | Improvement |
+|--------|--------|-------|-------------|
 | Total Input Tokens | 431,528 | 137,025 | **68% savings** |
-| Peak Input Tokens | 23,249 | 6,353 | **73% lower** |
-| Steps Completed | 12 | 12 | ✓ |
+| Peak Input Tokens | 23,249 | 6,353 | **73% lower peak** |
+| Steps Completed | 12 | 12 | Same |
 
-The branch approach uses more iterations (scope/note/goto overhead) but saves massively on tokens.
+Why SCOPE wins:
+- LINEAR: Every message stays in context forever → unbounded growth
+- SCOPE: Only current scope's messages + notes → bounded growth
+
+```
+Token Growth Over Time:
+
+LINEAR:     ████████████████████████████████████████░░░░ (overflow risk)
+            ↑ grows with every message
+
+SCOPE:      ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░ (bounded)
+            ↑ notes compress, messages reset per scope
+```
 
 ## Installation
 
@@ -99,23 +188,22 @@ pip install ctx-cli
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
 
-# Create store
 store = ContextStore()
 
-# Start a scope
-execute_command(store, 'scope fix-login -m "Investigating login bug"')
+# Start isolated work
+execute_command(store, 'scope fix-bug -m "Investigating login timeout"')
 
-# Add messages (simulating conversation)
-store.add_message(Message(role="user", content="Check the auth module"))
-store.add_message(Message(role="assistant", content="Found the issue..."))
+# Work happens here...
+store.add_message(Message(role="user", content="Check auth module"))
+store.add_message(Message(role="assistant", content="Found issue in session config"))
 
-# Save what you learned
-execute_command(store, 'note -m "Bug caused by session timeout config"')
+# Save what you learned (this persists!)
+execute_command(store, 'note -m "Bug: session timeout was 1s instead of 3600s"')
 
-# Return to main with findings
-execute_command(store, 'goto main -m "Fixed: session timeout was 1s, changed to 3600s"')
+# Return with results
+execute_command(store, 'goto main -m "Fixed login timeout issue"')
 
-# Get context for API call
+# Get context for API call (only includes: notes + current messages)
 context = store.get_context("You are a helpful assistant.")
 ```
 
@@ -125,51 +213,65 @@ context = store.get_context("You are a helpful assistant.")
 from openai import OpenAI
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
+import json
 
 client = OpenAI()
 store = ContextStore()
 
-# Include CTX_CLI_TOOL in your tools
-response = client.chat.completions.create(
-    model="gpt-4.1-mini",
-    messages=store.get_context(system_prompt),
-    tools=[CTX_CLI_TOOL],
-)
+SYSTEM_PROMPT = """You are a developer. Use ctx_cli to manage context:
+- scope <name> -m "why" - Start focused work
+- note -m "what" - Save findings
+- goto main -m "result" - Return with results"""
 
-# Handle ctx_cli tool calls
-for tool_call in response.choices[0].message.tool_calls:
-    if tool_call.function.name == "ctx_cli":
-        args = json.loads(tool_call.function.arguments)
-        result, event = execute_command(store, args["command"])
+# Agent loop
+while True:
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=store.get_context(SYSTEM_PROMPT),
+        tools=[CTX_CLI_TOOL],
+    )
+
+    msg = response.choices[0].message
+
+    if msg.tool_calls:
+        for tc in msg.tool_calls:
+            if tc.function.name == "ctx_cli":
+                args = json.loads(tc.function.arguments)
+                result, _ = execute_command(store, args["command"])
+                store.add_message(Message(
+                    role="tool",
+                    content=result,
+                    tool_call_id=tc.id
+                ))
+    else:
+        break  # No more tool calls
 ```
 
 ## Why This Works
 
-1. **Isolated reasoning**: Each scope has its own context, preventing confusion
-2. **Persistent memory**: Notes survive when messages are cleared
-3. **Explicit transitions**: No "mental gaps" - origin knows why you left, destination knows what you brought
-4. **Lower peak context**: 73% reduction means staying further from limits
+1. **Attention mask per scope**: Messages are isolated, no cross-contamination
+2. **Notes = compressed memory**: Key learnings persist, verbose messages don't
+3. **Explicit transitions**: `[→ scope]` and `[← scope]` prevent mental gaps
+4. **Bounded growth**: Peak context stays low even for long tasks
 
-## Architecture
+## Demos
 
+```bash
+# Compare LINEAR vs SCOPE token usage
+python demos/demo_comparison.py
+
+# Real coding task with 12 steps
+python demos/demo_long_coding_task.py
+
+# Cross-project knowledge transfer
+python demos/demo_knowledge_retention.py
+
+# Explore alternatives in parallel
+python demos/demo_planning.py
+
+# Automatic note policies
+python demos/demo_policies.py
 ```
-┌────────────────┐     ┌─────────────┐     ┌──────────────┐
-│   LLM Model    │────▶│   ctx_cli   │────▶│ ContextStore │
-│                │     │   (tool)    │     │              │
-└────────────────┘     └─────────────┘     └──────────────┘
-        │                     │                    │
-        ▼                     ▼                    ▼
-   Uses tool           Parses command       Manages state
-   to manage           and executes         (scopes, notes,
-   own context                               messages)
-```
-
-## Philosophy
-
-1. **Model as curator**: The model decides what's worth remembering
-2. **Explicit transitions**: scope/goto notes preserve reasoning chains
-3. **No mental gaps**: Origin and destination always have context
-4. **Token-efficient**: Notes preserve insights, working messages can be cleared
 
 ## License
 
