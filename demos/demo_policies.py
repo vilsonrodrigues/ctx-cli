@@ -230,7 +230,7 @@ def run_policies_demo():
         print("  (none - model took notes manually or policies just warned)")
 
     print("\n📋 Notes Log:")
-    result, _ = store.log(limit=10)
+    result, _ = execute_command(store, "notes")
     for line in result.split("\n"):
         if line.strip():
             print(f"  {line}")

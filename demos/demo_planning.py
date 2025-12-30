@@ -93,18 +93,14 @@ def run_planning():
                         args = json.loads(tool_call.function.arguments)
                         result, _ = execute_command(store, args["command"])
                         cmd = args["command"]
-                        if "checkout -b" in cmd:
-                            print(f"  🌿 NEW BRANCH: {cmd[13:50]}...")
-                        elif "checkout" in cmd:
-                            print(f"  🔀 SWITCH: {cmd[:40]}")
-                        elif "merge" in cmd:
-                            print(f"  🔗 MERGE: {cmd}")
-                        elif "diff" in cmd:
-                            print(f"  📊 COMPARE: {cmd}")
-                        elif "commit" in cmd:
-                            print(f"  💾 {cmd[11:55]}...")
-                        elif "tag" in cmd:
-                            print(f"  🏷️  {cmd}")
+                        if cmd.startswith("scope "):
+                            print(f"  🌿 SCOPE: {cmd}")
+                        elif cmd.startswith("goto "):
+                            print(f"  🔀 GOTO: {cmd}")
+                        elif cmd.startswith("note "):
+                            print(f"  📝 NOTE: {cmd[:50]}...")
+                        elif cmd in ("scopes", "notes"):
+                            print(f"  📋 {cmd.upper()}")
                         else:
                             print(f"  [ctx] {cmd[:40]}")
                         tool_results.append((tool_call.id, result))
@@ -217,7 +213,7 @@ def run_planning():
     print("=" * 70)
 
     print("\n🌿 Scopes Explored:")
-    result, _ = store.branch()
+    result, _ = execute_command(store, "scopes")
     for line in result.split("\n"):
         if line.strip():
             scope_name = line.strip().replace("* ", "→ ").replace("  ", "  ")

@@ -78,7 +78,7 @@ def run_linear_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     }
 
 
-def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
+def run_scope_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     """Run the task using ctx_cli with notes and scopes."""
     print("\n" + "=" * 70)
     print("APPROACH 2: SCOPE-BASED (With ctx_cli)")
@@ -88,7 +88,7 @@ def run_branch_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     store = ContextStore()
     tools = [CTX_CLI_TOOL]
     token_history = []
-    commits_made = 0
+    notes_made = 0
     start_time = time.time()
 
     system_prompt = """You are a software architect designing a system.
@@ -104,7 +104,7 @@ Key commands:
 - goto main -m "summary" - Return with findings"""
 
     def chat(user_message: str) -> int:
-        nonlocal commits_made
+        nonlocal notes_made
         store.add_message(Message(role="user", content=user_message))
 
         for _ in range(5):  # Max tool call rounds
@@ -131,7 +131,7 @@ Key commands:
                         args = json.loads(tool_call.function.arguments)
                         result, _ = execute_command(store, args["command"])
                         if "note" in args["command"]:
-                            commits_made += 1
+                            notes_made += 1
                         store.add_message(Message(
                             role="tool",
                             content=result,
@@ -153,18 +153,18 @@ Key commands:
         print(f"Step {i}: {step[:50]}...")
         tokens = chat(step)
         token_history.append(tokens)
-        print(f"  → Tokens: {tokens}, Notes: {commits_made}")
+        print(f"  → Tokens: {tokens}, Notes: {notes_made}")
 
     elapsed = time.time() - start_time
 
     return {
-        "approach": "branch",
+        "approach": "scope",
         "final_tokens": token_history[-1] if token_history else 0,
         "max_tokens": max(token_history) if token_history else 0,
         "token_history": token_history,
         "message_count": sum(len(b.messages) for b in store.branches.values()),
-        "notes_made": commits_made,
-        "branches": len(store.branches),
+        "notes_made": notes_made,
+        "scopes": len(store.branches),
         "elapsed_time": elapsed,
     }
 
@@ -187,7 +187,7 @@ def run_comparison():
 
     # Run both approaches
     linear_results = run_linear_approach(client, tracker)
-    branch_results = run_branch_approach(client, tracker)
+    scope_results = run_scope_approach(client, tracker)
 
     # =========================================================================
     # Comparison Results
@@ -201,34 +201,34 @@ def run_comparison():
     print(f"  {'-' * 25} {'-' * 12} {'-' * 12} {'-' * 12}")
 
     linear_max = linear_results["max_tokens"]
-    branch_max = branch_results["max_tokens"]
-    savings_max = ((linear_max - branch_max) / linear_max * 100) if linear_max > 0 else 0
+    scope_max = scope_results["max_tokens"]
+    savings_max = ((linear_max - scope_max) / linear_max * 100) if linear_max > 0 else 0
 
     linear_final = linear_results["final_tokens"]
-    branch_final = branch_results["final_tokens"]
-    savings_final = ((linear_final - branch_final) / linear_final * 100) if linear_final > 0 else 0
+    scope_final = scope_results["final_tokens"]
+    savings_final = ((linear_final - scope_final) / linear_final * 100) if linear_final > 0 else 0
 
-    print(f"  {'Max tokens':.<25} {linear_max:>12,} {branch_max:>12,} {savings_max:>11.1f}%")
-    print(f"  {'Final tokens':.<25} {linear_final:>12,} {branch_final:>12,} {savings_final:>11.1f}%")
+    print(f"  {'Max tokens':.<25} {linear_max:>12,} {scope_max:>12,} {savings_max:>11.1f}%")
+    print(f"  {'Final tokens':.<25} {linear_final:>12,} {scope_final:>12,} {savings_final:>11.1f}%")
 
     print("\n📈 Token Growth Curve:")
     print(f"  Step   │ {'Linear':>10} │ {'Scope':>10} │ Difference")
     print(f"  {'─' * 6}┼{'─' * 12}┼{'─' * 12}┼{'─' * 12}")
-    for i, (l, b) in enumerate(zip(linear_results["token_history"], branch_results["token_history"]), 1):
-        diff = l - b
+    for i, (l, s) in enumerate(zip(linear_results["token_history"], scope_results["token_history"]), 1):
+        diff = l - s
         diff_str = f"+{diff}" if diff > 0 else str(diff)
-        print(f"  {i:>5} │ {l:>10,} │ {b:>10,} │ {diff_str:>10}")
+        print(f"  {i:>5} │ {l:>10,} │ {s:>10,} │ {diff_str:>10}")
 
     print("\n📋 Context Management:")
     print(f"  {'Metric':<30} {'Linear':>12} {'Scope':>12}")
     print(f"  {'-' * 30} {'-' * 12} {'-' * 12}")
-    print(f"  {'Final message count':.<30} {linear_results['message_count']:>12} {branch_results['message_count']:>12}")
-    print(f"  {'Notes made':.<30} {'N/A':>12} {branch_results.get('notes_made', 0):>12}")
-    print(f"  {'Scopes created':.<30} {'N/A':>12} {branch_results.get('branches', 1):>12}")
+    print(f"  {'Final message count':.<30} {linear_results['message_count']:>12} {scope_results['message_count']:>12}")
+    print(f"  {'Notes made':.<30} {'N/A':>12} {scope_results.get('notes_made', 0):>12}")
+    print(f"  {'Scopes created':.<30} {'N/A':>12} {scope_results.get('scopes', 1):>12}")
 
     print("\n⏱️  Execution Time:")
     print(f"  Linear: {linear_results['elapsed_time']:.1f}s")
-    print(f"  Scope: {branch_results['elapsed_time']:.1f}s")
+    print(f"  Scope: {scope_results['elapsed_time']:.1f}s")
 
     print("\n💡 Key Insights:")
     if savings_final > 0:
@@ -236,8 +236,8 @@ def run_comparison():
     else:
         print(f"  → Scope approach used {-savings_final:.1f}% more tokens (overhead from tool calls)")
 
-    if branch_results.get("notes_made", 0) > 0:
-        print(f"  ✓ {branch_results['notes_made']} notes preserved reasoning as episodic memory")
+    if scope_results.get("notes_made", 0) > 0:
+        print(f"  ✓ {scope_results['notes_made']} notes preserved reasoning as episodic memory")
     else:
         print("  → No notes made (model didn't use ctx_cli)")
 
