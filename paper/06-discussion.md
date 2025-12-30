@@ -24,9 +24,53 @@ Episodic notes achieve 10-15x compression by replacing detailed message historie
 
 This compression is lossy—details are lost. However, for knowledge transfer and decision continuity, the semantic summary often suffices. When details are needed, the full message snapshot is stored for potential reconstruction.
 
-## 6.2 Limitations
+## 6.2 When Explicit Context Management Helps
 
-### 6.2.1 Depends on Agent Compliance
+Our experiments across different benchmark types reveal when scope-based context management provides value versus when simpler approaches suffice.
+
+### 6.2.1 Sequential Tasks: High Value
+
+**SWE-Bench-CL** demonstrates ctx-cli's strength. For 15 sequential Django issue resolution tasks:
+
+- **88% peak context reduction** (12,059 → 1,402 tokens)
+- **34% faster execution** (121.5s → 80.5s)
+- **Bounded growth** (+543 tokens vs +11,812 linear growth)
+
+The key factor is **context accumulation**: each task builds on knowledge from previous tasks. LINEAR approach accumulates all message history, growing linearly with task count. At this rate:
+
+- 50 tasks → ~40K tokens (approaching limits)
+- 100 tasks → ~80K tokens (near 128K ceiling)
+- SCOPE → remains under 2K tokens regardless of count
+
+The 4x increase in API calls (15 → 60) is offset by dramatically smaller per-call context, yielding net speedup despite overhead.
+
+### 6.2.2 Isolated Tasks: Limited Value
+
+**SWE-Bench Lite** testing revealed that for independent, single-issue tasks, scope management overhead can exceed benefits:
+
+- Django fix: 11 iterations (LINEAR) vs 30 iterations (SCOPE)
+- Both generated correct patches
+- LINEAR was 2.7x faster (18.6s vs 50.3s)
+
+For isolated tasks without context accumulation, the overhead of:
+- Additional tool calls for scope management
+- Note-taking and retrieval
+- Extended system prompt
+
+Exceeds the value from bounded context, since there's minimal context to bound.
+
+### 6.2.3 The Critical Differentiator
+
+The key question: **"Will context accumulate across multiple related steps?"**
+
+- **Yes** (multi-turn debugging, code review series, project evolution) → Use SCOPE
+- **No** (single bug fix, isolated refactor, one-off task) → Use LINEAR
+
+This aligns with the design intent: explicit context management is for **long-running, multi-step tasks** where context growth becomes a bottleneck.
+
+## 6.3 Limitations
+
+### 6.3.1 Depends on Agent Compliance
 
 The approach requires the model to correctly use commands. In our experiments, models occasionally:
 - Forgot to take notes before switching scopes
@@ -38,11 +82,11 @@ Prompt engineering mitigates these issues, but doesn't eliminate them. Future wo
 - Policy-based enforcement (our implementation includes optional policies)
 - Fine-tuning for better command usage
 
-### 6.2.2 Note Quality Affects Value
+### 6.3.2 Note Quality Affects Value
 
 Low-quality notes ("done", "completed step") provide minimal value. The compression benefit assumes notes capture semantic meaning. We observed note quality correlates with prompt clarity—agents given explicit guidance on what to include in notes produced more useful summaries.
 
-### 6.2.3 Overhead for Short Tasks
+### 6.3.3 Overhead for Short Tasks
 
 For tasks under ~5 steps, the overhead of:
 - Extended system prompt (~800 tokens)
@@ -51,19 +95,19 @@ For tasks under ~5 steps, the overhead of:
 
 May exceed the savings from context isolation. Explicit context management is most valuable for long-running, multi-step tasks.
 
-### 6.2.4 Scope Boundaries Require Judgment
+### 6.3.4 Scope Boundaries Require Judgment
 
 Deciding when to create a new scope vs. continue in the current scope is a judgment call. Our experiments used prompts suggesting scope creation for "distinct subtasks," but this remains ambiguous. Over-scoping fragments context unnecessarily; under-scoping loses isolation benefits.
 
-## 6.3 Design Decisions
+## 6.4 Design Decisions
 
-### 6.3.1 Why Not Rewind?
+### 6.4.1 Why Not Rewind?
 
 An earlier version included a `rewind` command to undo notes and reset to previous states. We removed it based on the principle: **"rewriting the past is dangerous; it's better to take a note acknowledging the error."**
 
 Errors become learning opportunities when captured as notes. A corrective note ("Previous assumption about X was wrong; actually Y") is more valuable than erasing the mistake—it prevents future repetition and documents the reasoning evolution.
 
-### 6.3.2 Why Asymmetric Note Placement?
+### 6.4.2 Why Asymmetric Note Placement?
 
 We experimented with symmetric placement (notes always in current scope) and destination-only placement. Asymmetric placement—origin for `scope`, destination for `goto`—emerged as optimal because:
 
@@ -72,7 +116,7 @@ We experimented with symmetric placement (notes always in current scope) and des
 
 This creates complete trails in both the origin (departure log) and destination (arrival log).
 
-### 6.3.3 Why Inherit from Main?
+### 6.4.3 Why Inherit from Main?
 
 New scopes inherit notes from main, not from the current scope. This ensures:
 - All scopes have access to foundational knowledge
@@ -81,9 +125,9 @@ New scopes inherit notes from main, not from the current scope. This ensures:
 
 Alternative designs could support hierarchical scope trees, but the flat main-centric structure proved sufficient for our use cases.
 
-## 6.4 Implications
+## 6.5 Implications
 
-### 6.4.1 For Agent Developers
+### 6.5.1 For Agent Developers
 
 Explicit context management offers a lightweight alternative to learned compression:
 - No fine-tuning required
@@ -95,7 +139,7 @@ Developers can add context management to existing agents by:
 2. Extending the system prompt with workflow guidance
 3. Optionally adding policies for automatic note suggestions
 
-### 6.4.2 For Framework Authors
+### 6.5.2 For Framework Authors
 
 Agent frameworks could integrate explicit context management as a core primitive. Rather than requiring developers to implement custom memory systems, frameworks could provide:
 - Built-in scope and note commands
@@ -103,7 +147,7 @@ Agent frameworks could integrate explicit context management as a core primitive
 - Policy engines for memory management
 - Visualization tools for reasoning traces
 
-### 6.4.3 For Researchers
+### 6.5.3 For Researchers
 
 The results suggest that effective long-running agents don't require learned compression policies. Simple, explicit mechanisms achieve significant token reduction with minimal complexity.
 
@@ -112,7 +156,7 @@ This opens questions:
 - Can note quality be automatically evaluated and improved?
 - How do explicit and learned approaches compare at scale?
 
-## 6.5 Relationship to Human Memory
+## 6.6 Relationship to Human Memory
 
 Our approach draws implicit parallels to human episodic memory [6]:
 
@@ -122,7 +166,7 @@ Our approach draws implicit parallels to human episodic memory [6]:
 
 Whether these parallels are merely metaphorical or reveal deeper principles of effective memory systems remains an open question.
 
-## 6.6 Threats to Validity
+## 6.7 Threats to Validity
 
 ### Internal Validity
 - Single model (GPT-4.1-mini) may not generalize
