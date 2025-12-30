@@ -1,19 +1,19 @@
 # ctx-cli
 
-Git-like context management for LLM agents.
+Context management for LLM agents. Persistent memory that survives context limits.
 
 ## The Problem
 
-Long-running LLM agents face context window limits. Traditional solutions (summarization, RAG) either lose critical details or add latency.
+Long-running LLM agents face context window limits. When context is truncated, the model loses track of what it learned, what decisions it made, and why.
 
 ## The Solution
 
-Treat context like a Git repository:
-- **Working memory** = Current branch messages (RAM)
-- **Episodic memory** = Commits (what the model learned/decided)
-- **Milestones** = Tags (immutable reference points)
+Give the model a memory system:
+- **Scopes** = Isolated reasoning spaces (like mental workspaces)
+- **Notes** = Episodic memory (what the model learned/decided)
+- **Transitions** = Explicit context switches with explanations
 
-The model manages its own context via `ctx_cli`, a single tool that accepts Git-like commands.
+The model manages its own context via `ctx_cli`, a single tool with 4 core commands.
 
 ## How It Works
 
@@ -23,64 +23,69 @@ The model manages its own context via `ctx_cli`, a single tool that accepts Git-
 ├─────────────────────────────────────────────────────────────┤
 │  System Prompt (fixed)                                      │
 ├─────────────────────────────────────────────────────────────┤
-│  Head Note: [From main] Working on bug fix                  │
+│  Transition Note: [← step-1] Task model complete            │
 ├─────────────────────────────────────────────────────────────┤
-│  Episodic Memory (commits):                                 │
-│    - [abc123] Identified root cause in parser               │
-│    - [def456] Fixed validation logic                        │
+│  Notes (episodic memory):                                   │
+│    - [abc123] Created Task with id, title, done             │
+│    - [def456] Added validation for required fields          │
 ├─────────────────────────────────────────────────────────────┤
 │  Working Messages:                                          │
-│    User: Can you also add error handling?                   │
-│    Assistant: Sure, I'll add try-catch blocks...            │
-│    Tool: [file edit result]                                 │
+│    User: Now create the repository                          │
+│    Assistant: I'll create TaskRepository...                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-When context grows too large:
-1. Model calls `ctx_cli commit -m "Added error handling with custom exceptions"`
-2. Working messages are cleared
-3. Commit message becomes episodic memory
+Key insight:
+- `scope` note explains WHY you're leaving current scope
+- `goto` note explains WHAT you bring to destination
+- This prevents "mental gaps" when switching contexts
 
 ## Commands
 
-### Basic Commands
+### Core Commands (4 total)
 
 | Command | Description |
 |---------|-------------|
-| `commit -m "message"` | Save reasoning, clear working memory |
-| `checkout -b branch -m "note"` | Switch to new branch with transition note |
-| `checkout branch -m "note"` | Switch to existing branch |
-| `branch [name]` | List branches or create new |
-| `tag name -m "desc"` | Create immutable milestone |
-| `log` | Show commit history |
-| `status` | Show current state |
-| `diff branch` | Compare with another branch |
-| `stash push -m "msg"` | Save work temporarily |
-| `stash pop` | Restore stashed work |
-| `history` | Show recent commands |
+| `scope <name> -m "why"` | Create new scope. Note stays in CURRENT (origin). |
+| `goto <name> -m "result"` | Switch to scope. Note goes to DESTINATION. |
+| `note -m "what"` | Save learning in current scope. Be detailed! |
+| `scopes` | List all scopes |
+| `notes [scope]` | Show notes in scope (default: current) |
 
-### Advanced Commands
+### Example Workflow
 
-| Command | Description |
-|---------|-------------|
-| `merge branch` | Merge commits from another branch |
-| `cherry-pick hash` | Apply specific commit to current branch |
-| `reset hash [--hard]` | Go back to a previous state |
-| `bisect start/good/bad/reset` | Binary search for reasoning errors |
+```
+[in main]
+ctx_cli scope step-1 -m "Creating Task model"     # main gets this note
+[work: read files, write code]
+ctx_cli note -m "Created Task: id, title, done"   # step-1 gets this note
+ctx_cli goto main -m "Task model complete"        # main gets this note
+[back in main, ready for next step]
+```
+
+### Result in main:
+
+```
+[→ step-1] Creating Task model
+[← step-1] Task model complete
+[→ step-2] Creating TaskRepository
+[← step-2] Repository with atomic writes
+...
+```
+
+Main always knows: why you left, what you brought back.
 
 ## Token Economics
 
-Without ctx-cli:
-```
-Start → 2k tokens → work → 50k tokens → work → 100k tokens → LIMIT
-```
+**12-step coding task comparison:**
 
-With ctx-cli:
-```
-Start → 2k → work → 50k → commit → 5k → work → 60k → commit → 8k → ...
-```
+| Metric | LINEAR | BRANCH | Improvement |
+|--------|--------|--------|-------------|
+| Total Input Tokens | 431,528 | 137,025 | **68% savings** |
+| Peak Input Tokens | 23,249 | 6,353 | **73% lower** |
+| Steps Completed | 12 | 12 | ✓ |
 
-Each commit flattens the curve while preserving key insights.
+The branch approach uses more iterations (scope/note/goto overhead) but saves massively on tokens.
 
 ## Installation
 
@@ -97,15 +102,18 @@ from ctx_store import ContextStore, Message
 # Create store
 store = ContextStore()
 
+# Start a scope
+execute_command(store, 'scope fix-login -m "Investigating login bug"')
+
 # Add messages (simulating conversation)
-store.add_message(Message(role="user", content="Help me fix the login bug"))
-store.add_message(Message(role="assistant", content="I found the issue..."))
+store.add_message(Message(role="user", content="Check the auth module"))
+store.add_message(Message(role="assistant", content="Found the issue..."))
 
-# Commit reasoning
-execute_command(store, 'commit -m "Login bug caused by session timeout"')
+# Save what you learned
+execute_command(store, 'note -m "Bug caused by session timeout config"')
 
-# Start new task
-execute_command(store, 'checkout -b add-tests -m "Going to add unit tests"')
+# Return to main with findings
+execute_command(store, 'goto main -m "Fixed: session timeout was 1s, changed to 3600s"')
 
 # Get context for API call
 context = store.get_context("You are a helpful assistant.")
@@ -114,35 +122,33 @@ context = store.get_context("You are a helpful assistant.")
 ## With OpenAI
 
 ```python
-from agent import ContextManagedAgent
+from openai import OpenAI
+from ctx_cli import CTX_CLI_TOOL, execute_command
+from ctx_store import ContextStore, Message
 
-agent = ContextManagedAgent(model="gpt-4.1-mini")
+client = OpenAI()
+store = ContextStore()
 
-# The model will automatically use ctx_cli to manage its context
-response = agent.run("Build a REST API with CRUD operations for todos")
+# Include CTX_CLI_TOOL in your tools
+response = client.chat.completions.create(
+    model="gpt-4.1-mini",
+    messages=store.get_context(system_prompt),
+    tools=[CTX_CLI_TOOL],
+)
+
+# Handle ctx_cli tool calls
+for tool_call in response.choices[0].message.tool_calls:
+    if tool_call.function.name == "ctx_cli":
+        args = json.loads(tool_call.function.arguments)
+        result, event = execute_command(store, args["command"])
 ```
 
-## Event System
+## Why This Works
 
-Every `ctx_cli` command produces an event:
-
-```python
-{
-    "type": "commit",
-    "timestamp": "2024-01-15T10:30:00",
-    "branch": "fix-parser",
-    "payload": {
-        "message": "Fixed JSON parsing for nested objects",
-        "hash": "abc123def456",
-        "messages_count": 12
-    }
-}
-```
-
-Use events to:
-- Reconstruct context state
-- Monitor agent behavior
-- Debug reasoning chains
+1. **Isolated reasoning**: Each scope has its own context, preventing confusion
+2. **Persistent memory**: Notes survive when messages are cleared
+3. **Explicit transitions**: No "mental gaps" - origin knows why you left, destination knows what you brought
+4. **Lower peak context**: 73% reduction means staying further from limits
 
 ## Architecture
 
@@ -152,19 +158,18 @@ Use events to:
 │                │     │   (tool)    │     │              │
 └────────────────┘     └─────────────┘     └──────────────┘
         │                     │                    │
-        │                     │                    │
         ▼                     ▼                    ▼
    Uses tool           Parses command       Manages state
-   to manage           and executes         (branches, commits,
-   own context                               tags, messages)
+   to manage           and executes         (scopes, notes,
+   own context                               messages)
 ```
 
 ## Philosophy
 
 1. **Model as curator**: The model decides what's worth remembering
-2. **Intentional transitions**: Checkout notes preserve reasoning chains
-3. **Immutable milestones**: Tags mark approved decisions
-4. **Token-efficient**: Commits preserve insights, discard noise
+2. **Explicit transitions**: scope/goto notes preserve reasoning chains
+3. **No mental gaps**: Origin and destination always have context
+4. **Token-efficient**: Notes preserve insights, working messages can be cleared
 
 ## License
 
