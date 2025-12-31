@@ -10,118 +10,85 @@ CoALA distinguishes between **working memory** (the active context window) and *
 
 Critically, CoALA identifies that most contemporary agents conflate working and long-term memory within the context window—a design that inherently limits agent longevity. Our work addresses this limitation through explicit scope isolation, creating distinct memory tiers without requiring external databases.
 
-## 2.2 Virtual Context Management
+## 2.2 Version Control as Cognitive Metaphor
 
-MemGPT [13] introduced the paradigm of **virtual context management**, drawing an analogy between LLM context windows and operating system memory hierarchies. Just as operating systems provide the illusion of unlimited memory through paging between RAM and disk, MemGPT enables LLMs to operate beyond their native context limits through intelligent data movement.
+While not typically cited in agent literature, software version control systems (VCS) like Git represent the most successful engineered systems for managing complex, non-linear text history. Concepts such as **branching** (isolating work), **committing** (checkpointing state), and **merging** (reintegrating knowledge) provide a mature vocabulary for managing state evolution.
 
-The MemGPT architecture divides memory into:
-- **Main context**: Active tokens within the LLM's window (analogous to RAM)
-- **External context**: Archival and recall storage (analogous to disk)
+Our work explicitly adopts these metaphors. Where Git manages code, our system manages *reasoning*. By treating the agent's context as a versioned artifact, we gain powerful primitives for handling the "forking paths" of complex problem solving—primitives that are absent in linear conversation models.
 
-The LLM manages these tiers through function calls, "paging" information in and out as tasks demand. When required information is absent from main context—analogous to a page fault—the agent issues retrieval commands to external storage [13].
+## 2.3 Episodic Memory: Foundations and Retrieval
 
-This operating systems metaphor is powerful but introduces complexity: agents must learn when to page, what to evict, and how to maintain coherence across memory tiers. Our approach shares MemGPT's goal of bounded context but achieves it through simpler means—explicit scope boundaries rather than learned paging policies.
+The theoretical basis for episodic memory traces back to Tulving [21], who distinguished it from semantic memory by its "autonoetic" quality—the ability to mentally travel back in time to re-experience specific events defined by *what*, *where*, and *when*.
 
-## 2.3 Episodic Memory and Reflection
+### 2.3.1 Retrieval-Augmented Approaches
+Most contemporary agents implement episodic memory via **Retrieval-Augmented Generation (RAG)** over raw interaction logs. Systems like **MemoryBank** [22] enforce biological realism by implementing the Ebbinghaus forgetting curve, where memories decay over time unless reinforced. **TiM (Think-in-Memory)** [23] creates an evolving memory store where agents can iteratively curate their own history.
 
-The seminal work on Generative Agents [14] established the importance of episodic memory for believable long-term agent behavior. By equipping 25 simulated characters with memory streams, reflection capabilities, and planning modules, Park et al. demonstrated that explicit memory mechanisms transform LLMs into entities capable of coherent multi-day behavior.
+However, standard RAG approaches suffer from **narrative fragmentation**. Retrieving the top-$k$ distinct log chunks based on semantic similarity often destroys the causal chain of reasoning. The agent retrieves *what* happened, but loses the *why*—the transition logic that links state A to state B. ECM addresses this by storing synthesized notes rather than raw logs, and by enforcing transition notes that explicitly preserve causality.
+
+### 2.3.2 Experience Replay
+In Reinforcement Learning, **Experience Replay** buffers allow agents to learn from past transitions. **REMEMBERER** [24] adapts this for LLMs, training a dedicated memory model to select high-value experiences for storage. Unlike these systems, which often require training or separate retriever models, ECM relies on the agent's own in-context reasoning to decide what is memorable at the moment of creation.
+
+## 2.4 Generative Agents and Reflection
+
+The seminal work on **Generative Agents** [14] established the structural implementation of episodic memory for believable behavior. By equipping simulated characters with memory streams, reflection capabilities, and planning modules, Park et al. demonstrated that explicit memory mechanisms transform LLMs into entities capable of coherent multi-day behavior.
 
 The Generative Agents architecture comprises three components:
+1. **Memory stream**: A comprehensive log of observations.
+2. **Reflection**: Periodic synthesis of raw memories into higher-level insights.
+3. **Retrieval**: Selection of relevant memories based on recency, importance, and relevance.
 
-1. **Memory stream**: A comprehensive log of observations in natural language
-2. **Reflection**: Periodic synthesis of raw memories into higher-level insights
-3. **Retrieval**: Selection of relevant memories based on recency, importance, and relevance
+**Reflexion** [15] extends this to task-oriented agents through **verbal reinforcement learning**, maintaining an episodic buffer of self-critiques (e.g., "I failed specifically because I imported the wrong library") to inform future attempts.
 
-The reflection mechanism is particularly significant—agents periodically analyze their experiences to form generalizations ("Klaus is interested in art") that guide future behavior [14]. This creates a self-reinforcing cycle where experiences inform beliefs, which shape actions, which generate new experiences.
+Our note-taking mechanism shares the "Reflection" DNA of these systems: notes are explicit syntheses of experience rather than raw logs. However, while Generative Agents focuses on *background* simulation, ECM focuses on *active* workflow management. Our "Scope" mechanism adds a spatial dimension (memory isolation) that these linear-stream systems lack.
 
-Reflexion [15] extends this paradigm to task-oriented agents through **verbal reinforcement learning**. Rather than updating model weights, Reflexion agents maintain an episodic buffer of self-critiques that inform subsequent attempts. When a coding task fails, the agent reflects on the failure mode and stores this reflection for future reference—achieving learning through linguistic feedback rather than gradient updates [15].
+## 2.5 Virtual Context Management
 
-Our note-taking mechanism shares philosophical roots with these systems: notes are explicit reflections that persist across reasoning episodes. However, while Generative Agents and Reflexion focus on *what* to remember, our work addresses *when* memories should be visible—the attention mask dimension that determines which context is active at any moment.
+**MemGPT** [13] introduced the paradigm of **virtual context management**, drawing an analogy between LLM context windows and operating system memory hierarchies. Just as operating systems provide the illusion of unlimited memory through paging between RAM and disk, MemGPT enables LLMs to operate beyond their native context limits through intelligent data movement.
 
-## 2.4 Agentic Memory Systems
+The MemGPT architecture divides memory into:
+- **Main context**: Active tokens within the LLM's window (analogous to RAM).
+- **External context**: Archival and recall storage (analogous to disk).
 
-Recent work has moved beyond passive memory storage toward **agentic memory**—systems that actively manage their own memory lifecycle [16, 17].
+The LLM manages these tiers through function calls, "paging" information in and out. This operating systems metaphor is powerful but introduces complexity: agents must learn paging policies. Our approach shares MemGPT's goal of bounded context but achieves it through simpler means—explicit scope boundaries rather than learned paging policies.
 
-**Mem0** [16] exemplifies this approach through a two-phase pipeline:
+## 2.6 Agentic Memory Systems
 
-1. **Extraction**: An LLM analyzes conversation turns to identify candidate memories
-2. **Update**: Each candidate is compared against existing memories, with an LLM resolver determining the appropriate operation (ADD, UPDATE, DELETE, or NOOP)
+Recent work has moved beyond passive storage toward **agentic memory**—systems that actively manage their own memory lifecycle.
 
-The graph-enhanced variant, Mem0g, represents memories as directed graphs where nodes are entities and edges encode semantic relations [16]. This structure enables multi-hop reasoning over temporal and relational queries that flat vector stores struggle to answer.
+**Mem0** [16] employs a two-phase pipeline (Extraction + Resolution) to maintain a consistent user profile. **A-MEM** [17] draws inspiration from the Zettelkasten method, organizing memories as atomic notes with dynamic inter-linkages generated by the model.
 
-**A-MEM** [17] draws inspiration from the Zettelkasten method of knowledge management, organizing memories as atomic notes with dynamic inter-linkages. Each memory $m_i$ comprises:
+These systems represent the state-of-the-art in *implicit* management—the system organizes memory for the agent. ECM represents the alternative *explicit* pole: the agent organizes memory for itself. This shifts the burden from complex backend infrastructure (vector DBs, graph stores) to the agent's reasoning capabilities.
 
-$$m_i = \{c_i, t_i, K_i, G_i, X_i, e_i, L_i\}$$
+## 2.7 Context Compression and Folding
 
-where $c_i$ is content, $t_i$ is timestamp, $K_i, G_i, X_i$ are LLM-generated metadata (keywords, tags, context), $e_i$ is a vector embedding, and $L_i$ represents links to related memories [17].
+A parallel research thread addresses context limits through **compression**.
 
-A-MEM's distinguishing feature is autonomous link generation: when a new memory is created, the system identifies semantically related existing memories and establishes bidirectional connections. This creates an evolving knowledge graph that surfaces emergent relationships.
+**Context-Folding** [2] and **AgentFold** [1] use reinforcement learning or fine-tuning to teach models when to "fold" (compress) their context. **HiAgent** [3] decomposes tasks into subgoals with associated context chunks.
 
-These systems demonstrate sophisticated memory management but require external infrastructure (vector databases, graph stores) and introduce retrieval latency. Our approach trades sophistication for simplicity: rather than intelligent extraction and linking, we rely on explicit agent decisions about what to preserve.
+## 2.8 Challenges in Long-Running Coding Agents
 
-## 2.5 Skill Libraries and Procedural Memory
+The specific domain of software engineering magnifies context challenges due to the iterative nature of development. Benchmarks like **SWE-bench** [20] require agents to navigate large repositories, reproduce bugs, and verify fixes through repeated **Edit-Run-Debug loops**.
 
-**Voyager** [18] addresses long-term learning in embodied agents through a novel form of procedural memory: executable code. Operating in Minecraft, Voyager maintains a **skill library** of JavaScript functions representing learned behaviors.
+State-of-the-art agents like **SWE-agent** [25] and **OpenDevin** [26] employ specialized interfaces to mitigate context usage (e.g., limiting file viewer output). However, they typically rely on aggressive context truncation or sliding windows. This creates a specific failure mode: **"Context Amnesia" during debugging**. When an agent runs a test suite that generates 5,000 lines of output, a sliding window might evict the *code change* that caused the error, leaving the agent with the symptom but no memory of the cause [25].
 
-When Voyager discovers how to perform a task (e.g., mining iron), it:
-1. Generates executable code through iterative prompting
-2. Verifies correctness through environment feedback
-3. Stores the skill in a retrievable library
-
-This approach solves catastrophic forgetting—skills persist as code rather than weights—and enables zero-shot transfer to new environments [18]. Voyager achieves milestones 15.3× faster than prior methods by reusing previously learned skills.
-
-While Voyager focuses on procedural knowledge (how to do things), our work addresses episodic knowledge (what happened and why). The approaches are complementary: an agent could use scope isolation for reasoning while maintaining a Voyager-style skill library for actions.
-
-## 2.6 Context Compression and Folding
-
-A parallel research thread addresses context limits through **compression** rather than memory externalization.
-
-**Context-Folding** [2] frames context management as a reinforcement learning problem. Agents learn policies for two operations:
-- **Branch**: Create isolated context for focused reasoning
-- **Collapse**: Merge contexts back with summarization
-
-Through RL training, agents learn when these operations maximize task success. The approach achieves 10× context reduction on long-horizon tasks [2]. However, the requirement for reward engineering and RL training limits accessibility.
-
-**AgentFold** [1] introduces folding operations at two granularities:
-- **Micro-folding**: Compressing individual reasoning steps
-- **Macro-folding**: Collapsing entire reasoning branches
-
-AgentFold requires fine-tuning the underlying model to learn folding policies, adding deployment complexity.
-
-**HiAgent** [3] takes a hierarchical approach, decomposing tasks into subgoals with associated context chunks. Memory boundaries emerge from task structure rather than learned policies. HiAgent achieves 2× higher success rates with 35% less context without requiring fine-tuning [3].
+**AutoCodeRover** [27] attempts to solve this via program analysis (AST parsing) to retrieve only relevant code slices. While effective for *code* retrieval, it does not solve the *reasoning* continuity problem. ECM addresses this gap: by isolating the "Debug" scope, an agent can generate massive test logs, extract the relevant error into a note, and return to the "Edit" scope with a clean context and a clear objective, preventing the test output from polluting the reasoning history.
 
 Table 1 summarizes these approaches:
 
 | Approach | Mechanism | Training Required | Context Reduction |
 |----------|-----------|-------------------|-------------------|
+| MemoryBank [22] | Ebbinghaus Decay | No | Variable |
 | MemGPT [13] | Virtual paging | No | Unbounded (external) |
-| Mem0 [16] | Extraction + graphs | No | ~90% token savings |
 | Context-Folding [2] | RL-learned branch/collapse | RL training | 10× |
-| AgentFold [1] | Learned folding | Fine-tuning | High |
 | HiAgent [3] | Subgoal chunking | No | 35% |
-| **Ours** | Explicit scope isolation | **No** | **68%** |
+| **ECM (Ours)** | **Scope Isolation** | **No** | **88%** |
 
-## 2.7 Positioning Our Contribution
+## 2.9 Positioning Our Contribution
 
-Our work occupies a distinct position in this landscape. We share MemGPT's goal of bounded context but achieve it without external storage. We share Context-Folding's branching metaphor but implement it through explicit commands rather than learned policies. We share HiAgent's training-free philosophy but allow arbitrary scope organization rather than task-derived hierarchies.
+Our work occupies a distinct position in this landscape. We share MemGPT's goal of bounded context but achieve it without external storage. We share the "Reflection" concept of Generative Agents but apply it to workflow control.
 
-The key differentiators of explicit context management are:
+The key differentiator is **prospective vs. retrospective memory management**.
+- **Retrospective (RAG/Mem0):** "Look back at what I did and find what's important."
+- **Prospective (ECM):** "I am changing context now, so I will define what is important to carry forward."
 
-1. **No training requirements**: Works with any tool-use capable model
-2. **No external infrastructure**: All state maintained in-process
-3. **Explicit control**: Agents decide what to preserve through deliberate commands
-4. **Minimal interface**: Four commands cover all operations
-
-Perhaps most importantly, our approach makes context management **legible**. When an agent creates a scope or takes a note, these operations are visible in the conversation trace. Failures in memory management—forgotten notes, poorly chosen scope boundaries—can be diagnosed and corrected through prompt engineering rather than retraining.
-
-This legibility comes at a cost: the agent must correctly use the commands. Learned approaches may achieve better policies through optimization, while our approach depends on prompt-induced behavior. We view this as a reasonable tradeoff for applications where simplicity and interpretability are valued over peak performance.
-
-## 2.8 The Episodic Memory Hypothesis
-
-Recent position papers [6] argue that episodic memory is "the missing piece" for long-term LLM agents. Drawing parallels to biological memory systems, Nuxoll and Laird [6] note that episodic memory enables **single-exposure learning**—the ability to encode experiences from one occurrence rather than requiring multiple training examples.
-
-This capability is crucial for agents operating in non-stationary environments where specific events cannot be replicated. An agent that debugs a production incident must remember the specific error context; an agent assisting with a research project must recall which approaches were tried and why they failed.
-
-Our note mechanism operationalizes this hypothesis. Each note captures a specific episodic memory—what was discovered, decided, or learned in a particular context. The scope structure provides the "when and where" anchoring that distinguishes episodic from semantic memory. And the asymmetric placement semantics (origin for departure notes, destination for arrival notes) maintain the causal chain that makes episodic recall meaningful.
-
-In this sense, explicit context management is an implementation of the episodic memory hypothesis for practical agent deployment: a minimal architecture that provides fast, single-exposure encoding of task-relevant experiences without requiring architectural modifications or additional training.
+This prospective approach leverages the agent's current understanding of its goals to create high-quality episodic markers (notes) *in the moment*, avoiding the loss of nuance that occurs when summarizing raw logs after the fact.
