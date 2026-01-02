@@ -21,7 +21,9 @@ classifiers = [
 ]
 
 dependencies = [
+    "matplotlib>=3.9.4",
     "openai>=1.0.0",
+    "pandas>=2.3.3",
 ]
 
 [project.optional-dependencies]

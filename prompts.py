@@ -22,7 +22,8 @@ If a task is complex, you can use this memory-first approach:
 # RULES
 - CONTEXT IS EXPENSIVE: Keep your working memory lean.
 - ISOLATION: Always use `scope` for technical investigations or complex implementations.
-- PERSISTENCE: If you find something that will be useful later, save it as a `note` (local) or `insight` (global).
+- PERSISTENCE: Save useful findings as a `note` (local) or `insight` (global).
+- HYGIENE: Keep the `main` scope strictly for high-level coordination and task summaries. If you discover a global pattern while starting a new task, **open the task scope first** and record the `insight` there. Avoid recording operational details in `main` to keep the anchor history clean for future inheritance.
 - TERMINATION: Once you return to `main` with a final report, your work for the current task is considered finished.
 """
 

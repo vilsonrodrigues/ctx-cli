@@ -80,6 +80,25 @@ def execute_command(store: ContextStore, command: str) -> tuple[str, Event | Non
         return store.get_insights(), None
 
     if action == "notes":
+        scope_name = tokens[1] if len(tokens) > 1 else None
+        if scope_name:
+            if scope_name not in store.branches:
+                return f"Error: scope '{scope_name}' not found.", None
+            branch = store.branches[scope_name]
+            if not branch.notes:
+                return f"No notes in '{scope_name}' yet.", None
+            
+            # Sort newest first
+            sorted_notes = sorted(branch.notes, key=lambda x: x.timestamp, reverse=True)
+            
+            lines = [f"Notes in '{scope_name}':"]
+            for n in sorted_notes:
+                ts = n.timestamp.astimezone()
+                date_str = ts.strftime("%a %b %d %H:%M:%S %Y %z")
+                lines.append(f"Date:   {date_str}")
+                lines.append(f"    {n.content}\n")
+            return "\n".join(lines), None
+        
         return store.get_all_notes(), None
 
     if action == "scopes":

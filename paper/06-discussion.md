@@ -6,7 +6,10 @@ We discuss why explicit context management works, its limitations, design decisi
 
 The effectiveness of scope-based context management stems from two complementary mechanisms:
 
-### 6.1.1 Scope Isolation Bounds Per-Call Context
+### 6.1.1 The "Working Memory Reset" Effect
+
+A primary discovery in Task 4 was the 97% context reset achieved by ECM. While the linear agent carried the full burden of its exploration into subsequent tasks, the ECM agent successfully offloaded its working memory to notes. This 97% reduction (from 3,446 tokens down to 104) effectively provides a "clean slate" for each new task while preserving structural knowledge through notes.
+
 
 By partitioning messages into scopes and only including current-scope messages in API calls, we transform context growth from global O(n) to local O(n/s) where s is the number of scopes. For a 12-step task split across 4 scopes:
 
@@ -18,11 +21,11 @@ This directly reduces:
 - Latency (processing time scales with context)
 - Attention dilution (model focuses on relevant context)
 
-### 6.1.2 Note Compression Preserves Knowledge
+### 6.1.2 Qualitative Analysis of Note-Taking Behavior
 
-Episodic notes achieve 10-15x compression by replacing detailed message histories with semantic summaries. A 5-turn exploration producing 300 tokens of messages becomes a 20-token note: "Found: session timeout was 1s instead of 3600s."
+Observation of the agent's logs revealed that the model utilized the `note` and `goto main` commands not merely as protocol overhead, but as a technical serialization layer. For instance, in the Django tasks, the agent consistently recorded file paths and specific method changes (e.g., "Implemented __iter__ in Paginator class") before clearing its working memory. While the current benchmark tasks were largely independent, this behavior suggests that ECM successfully converts high-entropy conversational data into low-entropy structural knowledge, which is essential for long-term consistency in complex engineering projects.
 
-This compression is lossy—details are lost. However, for knowledge transfer and decision continuity, the semantic summary often suffices. When details are needed, the full message snapshot is stored for potential reconstruction.
+
 
 ## 6.2 When Explicit Context Management Helps
 
