@@ -1,6 +1,6 @@
 # 2. Related Work
 
-The challenge of maintaining coherent long-term behavior in language model agents has catalyzed a rich body of research spanning cognitive architectures, memory systems, and context management techniques. We organize this literature along six dimensions, situating our contribution within the broader landscape.
+The challenge of maintaining coherent long-term behavior in language model agents has catalyzed a rich body of research spanning cognitive architectures, memory systems, and context management techniques. Recent literature distinguishes between **Semantic Memory**—the storage of general facts and world knowledge—and **Episodic Memory**—the recall of specific past events and their contexts [5, 10]. In LLM agents, semantic memory is often implemented via Retrieval-Augmented Generation (RAG) using vector databases [1, 3]. However, pure RAG approaches often struggle with "Context Drift" where irrelevant episodic history pollutes the reasoning space. ECM addresses this by providing a deliberate interface for the agent to transition between these memory tiers.
 
 ## 2.1 Cognitive Architectures for Language Agents
 

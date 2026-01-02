@@ -310,28 +310,46 @@ class ContextStore:
         self.command_history.append(f"insight -m \"{message}\"")
         return f"Global insight recorded", event
 
-    def get_insights(self) -> str:
-        """Return all semantic insights."""
-        if not self.insights:
-            return "No global insights recorded."
+    def _format_entries_git_style(self, entries: list[tuple[str, any]], title: str) -> str:
+        """Helper to format a list of (scope, item) tuples in Git log style."""
+        if not entries:
+            return f"No {title.lower()} found."
+
+        # Sort by timestamp descending (newest first)
+        entries.sort(key=lambda x: x[1].timestamp, reverse=True)
         
-        lines = ["[SEMANTIC MEMORY - Global Insights]\n"]
-        for i in self.insights:
-            lines.append(f"- ({i.timestamp.strftime('%Y-%m-%d %H:%M:%S')}) {i.content}")
+        lines = [f"[{title}]"]
+        current_day = None
+        
+        for scope, item in entries:
+            # Git default format: 'Fri Jan 2 19:30:00 2026 -0300'
+            ts = item.timestamp.astimezone()
+            date_str = ts.strftime("%a %b %d %H:%M:%S %Y %z")
+            day_str = ts.strftime("%Y-%m-%d")
+            
+            if day_str != current_day:
+                lines.append(f"\nDate:   {date_str}")
+                current_day = day_str
+            
+            # For insights (global), scope might be empty or "Global"
+            prefix = f"[{scope}] " if scope else ""
+            lines.append(f"    {prefix}{item.content}")
+        
         return "\n".join(lines)
 
+    def get_insights(self) -> str:
+        """Return all semantic insights (Git log style)."""
+        entries = [("", i) for i in self.insights]
+        return self._format_entries_git_style(entries, "SEMANTIC MEMORY - Global Insights")
+
     def get_all_notes(self) -> str:
-        """Return episodic notes from ALL scopes."""
-        lines = ["[EPISODIC MEMORY - All Scope Notes]\n"]
-        found = False
+        """Return episodic notes grouped by day (Git log style)."""
+        entries = []
         for b_name, b in self.branches.items():
-            if b.notes:
-                found = True
-                lines.append(f"Scope: {b_name}")
-                for n in b.notes:
-                    lines.append(f"  - ({n.timestamp.strftime('%Y-%m-%d %H:%M:%S')}) {n.content}")
+            for n in b.notes:
+                entries.append((b_name, n))
         
-        return "\n".join(lines) if found else "No notes found in any scope."
+        return self._format_entries_git_style(entries, "EPISODIC MEMORY - Journal")
 
     def commit(self, message: str) -> tuple[str, Event]:
         """Commit current reasoning state."""
