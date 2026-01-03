@@ -37,6 +37,8 @@ Manage the agent's active reasoning space.
     *   **Behavior:** Restores the target's working memory. The summary message is recorded in the target scope's journal to ensure continuity.
 *   **`scopes`**
     *   **Action:** Lists all active reasoning scopes.
+*   **`status`**
+    *   **Action:** Shows current scope, working message count, and memory statistics (insights/notes count).
 
 ### 2. Knowledge Persistence
 Save technical knowledge before clearing the context.

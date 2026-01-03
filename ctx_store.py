@@ -434,7 +434,18 @@ class ContextStore:
     # ... rest of the methods (tag, log, status, diff, history, stash, merge, etc.) follow similar pattern ...
     def status(self) -> tuple[str, Event]:
         branch = self._get_current_branch()
-        lines = [f"On branch: {self.current_branch}", f"Working messages: {len(branch.messages)}", f"Notes: {len(branch.notes)}"]
+        total_insights = len(self.insights)
+        total_scopes = len(self.branches)
+        total_notes = sum(len(b.notes) for b in self.branches.values())
+        
+        lines = [
+            f"On scope: {self.current_branch}",
+            f"Working messages: {len(branch.messages)}",
+            "",
+            "Memory Stats:",
+            f"- Semantic Insights: {total_insights} recorded (Global)",
+            f"- Episodic Notes: {total_notes} entries (across {total_scopes} scopes)"
+        ]
         return "\n".join(lines), self._emit_event("status", {})
 
     def add_message(self, message: Message) -> None:
