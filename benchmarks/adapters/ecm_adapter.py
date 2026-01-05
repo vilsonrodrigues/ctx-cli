@@ -393,11 +393,11 @@ class ECMAgentWrapper:
         - note -m "message" to save episodic facts
         - insight -m "message" to save semantic patterns
         """
-        from prompts import SYSTEM_PROMPT_ECM
+        from prompts import SYSTEM_PROMPT_ECM_MEMORY
 
         # Build memory context
         memory_state = self._get_memory_state()
-        system = SYSTEM_PROMPT_ECM + f"\n\n# CURRENT STATE\n{memory_state}"
+        system = SYSTEM_PROMPT_ECM_MEMORY + f"\n\n# CURRENT STATE\n{memory_state}"
 
         messages = [
             {"role": "system", "content": system},
