@@ -554,25 +554,32 @@ class ECMAgentWrapper:
     # =========================================================================
 
     def _switch_context(self, context_id: int):
-        """Switch to a new context scope."""
+        """
+        Switch to a new context scope.
+        
+        Uses new_project() to properly reset the session while preserving
+        notes from previous contexts for cross-context memory retrieval.
+        """
         scope_name = f"context_{context_id}"
         old_scope = self.store.current_branch
-
-        if scope_name in self.store.branches:
-            # Return to existing scope
-            note = f"Returning to context {context_id}"
-            self.store.checkout(scope_name, note=note, create=False)
-            self.logger.goto(scope_name, note, old_scope)
+        
+        # Use new_project when switching to a completely new context
+        # This preserves old main as main-{previous_project} for reference
+        if context_id != self.current_context_id and self.current_context_id >= 0:
+            project_name = f"context_{context_id}"
+            self.store.new_project(project_name)
+            self.logger.info(f"New project: {project_name} (previous context preserved)")
             self.metrics_collector.record_scope_operation(
-                old_scope, scope_name, "goto", note
+                old_scope, "main", "new_project", f"Starting context {context_id}"
             )
-        else:
-            # Create new scope
+        
+        # Now create the working scope within this project
+        if scope_name not in self.store.branches:
             note = f"Starting context {context_id}"
             self.store.checkout(scope_name, note=note, create=True)
-            self.logger.scope(scope_name, note, old_scope)
+            self.logger.scope(scope_name, note, self.store.current_branch)
             self.metrics_collector.record_scope_operation(
-                old_scope, scope_name, "scope", note
+                self.store.current_branch, scope_name, "scope", note
             )
 
     def _chunk_content(self, content: str) -> list[str]:
