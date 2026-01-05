@@ -301,22 +301,31 @@ class ContextStore:
         """
         Start a new project. Developer API - not exposed to model.
         
+        - Renames current main to main-{previous_project} (preserves messages and notes)
         - Marks all current scopes as belonging to the previous project
-        - Clears main branch messages (notes are preserved for reference)
+        - Creates fresh main for new project
         - Resets to main scope
         """
+        previous_project = self.current_project
+        
+        # Rename current main to main-{previous_project} to preserve it
+        if "main" in self.branches:
+            archived_main_name = f"main-{previous_project}"
+            self.branches[archived_main_name] = self.branches["main"]
+            self.branches[archived_main_name].name = archived_main_name
+            self._scope_to_project[archived_main_name] = previous_project
+            del self.branches["main"]
+        
         # Mark all current project scopes as belonging to previous project
-        for scope_name in self.branches:
-            if self._scope_to_project.get(scope_name) == self.current_project:
-                self._scope_to_project[scope_name] = self.current_project
+        for scope_name in list(self.branches.keys()):
+            if self._scope_to_project.get(scope_name) == previous_project:
+                self._scope_to_project[scope_name] = previous_project
         
         # Update to new project
         self.current_project = name
         
-        # Clear main messages but preserve notes for reference
-        self.branches["main"].messages = []
-        
-        # Mark main as new project's scope
+        # Create fresh main for new project
+        self.branches["main"] = Branch(name="main")
         self._scope_to_project["main"] = name
         
         # Reset to main
