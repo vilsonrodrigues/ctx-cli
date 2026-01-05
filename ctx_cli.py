@@ -21,7 +21,7 @@ CTX_CLI_TOOL = {
   goto <name> -m "<note>"    Switch to existing scope.
   note -m "<message>"        Record episodic memory (event) in current scope.
   insight -m "<message>"     Record semantic memory (global fact/pattern).
-  scopes                     List all scopes.
+  status                     Show current scope, all scopes (by project), and memory stats.
   notes                      List ALL episodic notes (Journal).
   insights                   List all global semantic insights.
 
@@ -100,9 +100,6 @@ def execute_command(store: ContextStore, command: str) -> tuple[str, Event | Non
             return "\n".join(lines), None
         
         return store.get_all_notes(), None
-
-    if action == "scopes":
-        return "\n".join([f"{'* ' if n == store.current_branch else '  '}{n}" for n in store.branches.keys()]), None
 
     if action == "status":
         return store.status()

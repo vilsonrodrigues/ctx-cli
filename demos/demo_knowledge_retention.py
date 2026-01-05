@@ -98,8 +98,11 @@ PROJECT_A_TASK = """Create a User model in models/user.py with:
 - is_valid() method that checks all validations
 - to_dict() method for serialization
 
-Make sure to include proper imports and docstrings.
-Read the file back to confirm."""
+WORKFLOW:
+1. First create a scope: scope user-model -m "Building User model"
+2. Write the code
+3. Record a note with patterns used
+4. Return to main when done"""
 
 PROJECT_B_TASK_LINEAR = """Create a Product model in models/product.py with:
 - Product dataclass with: id (str), name (str), price (float), stock (int), created_at (datetime), is_available (bool)
@@ -118,8 +121,11 @@ PROJECT_B_TASK_BRANCH = """Create a Product model in models/product.py with:
 - is_valid() method that checks all validations
 - to_dict() method for serialization
 
-IMPORTANT: First use 'notes' to recall how you built the User model.
-Apply the same patterns and structure you used there."""
+WORKFLOW:
+1. First check `status` to see available scopes and memory
+2. Use `notes <scope>` to recall patterns from previous work
+3. Create a scope and apply the patterns
+4. Record what you learned and return to main"""
 
 SYSTEM_PROMPT_LINEAR = """You are a software developer.
 
@@ -131,77 +137,46 @@ SYSTEM_PROMPT_BRANCH = '''You are a software developer.
 
 Tools: read_file, write_file, ctx_cli
 
-# WHY NOTES MATTER
+# CONTEXT MANAGEMENT
 
-Your context resets between projects. Without notes, you forget everything.
-Notes are your ONLY long-term memory. They persist forever.
+Your context resets between projects. Use ctx_cli to manage memory.
 
-When you take good notes:
-- Future projects can recall your patterns and decisions
-- You avoid reinventing solutions you already created
-- Your knowledge compounds across projects
+# COMMANDS
 
-When you skip notes:
-- Next project starts from zero
-- You lose all the patterns you established
-- You waste time rediscovering what you already knew
+status                  Check current state, scopes, and available memory actions
+scope <name> -m "..."   Create new scope for a task
+note -m "..."           Save episodic memory to current scope
+insight -m "..."        Save global pattern (semantic memory)
+goto main -m "..."      Return to main scope
+notes                   Recall all episodic memory
+notes <scope>           Recall specific scope memory
+insights                Recall semantic memory
 
-# COMMANDS (4 total)
+# WORKFLOW
 
-scope <name> -m "..."   Create scope. Note saves in CURRENT scope first.
-note -m "..."           Save to memory. Be VERY detailed.
-goto main -m "..."      Return. Note saves in main.
-notes <scope>           Read notes from any scope.
+1. STATUS FIRST: Always check `status` to see available scopes and memory
+2. SCOPE: Create a scope for your task
+3. RECALL: Check `notes` or `insights` for relevant patterns
+4. WORK: Read/write files
+5. NOTE: Record what you learned before leaving
+6. RETURN: goto main when done
 
-# WORKFLOW (follow exactly, in this order)
+# EXAMPLE (Project B recalls Project A patterns)
 
-1. SCOPE FIRST: scope project-name -m "what I will build"
-   - NEVER read/write files before creating scope
-
-2. WORK: read files, write code
-   - Do ONLY what was asked, nothing more
-
-3. NOTE BEFORE LEAVING: note -m "DETAILED summary"
-   Include: FILES, PATTERNS, DECISIONS, REUSABLE
-
-4. RETURN AND STOP: goto main -m "done: summary"
-   - After goto main, you are DONE
-   - Do NOT create more scopes or files
-   - Wait for next user instruction
-
-# EXAMPLE (Project A: User model)
-
-scope user-model -m "Creating User dataclass with validation"
-
-write_file models/user.py [code]
-read_file models/user.py
-
-note -m "FILES: models/user.py
-PATTERNS: dataclass with validation methods
-- validate_email(): checks @ symbol
-- validate_password(): checks min length
-- is_valid(): aggregates all validations
-- to_dict(): converts to dictionary
-DECISIONS: Individual validate_X methods for testability
-REUSABLE: This validation pattern works for any entity"
-
-goto main -m "User model complete with validation pattern"
-
-# EXAMPLE (Project B: recalls Project A)
+status
+-> Shows: Previous Projects: [default] user-model (1 notes)
 
 notes user-model
--> Shows the detailed note above
+-> Shows patterns from previous project
 
-scope product-model -m "Applying User model validation pattern"
+scope product-model -m "Applying User validation pattern"
 
-write_file models/product.py [using SAME pattern from notes]
+write_file models/product.py [using pattern from notes]
 
 note -m "FILES: models/product.py
-PATTERNS: Same as User model - dataclass with validate_X methods
-APPLIED FROM user-model: validate_X pattern, is_valid(), to_dict()
-REUSABLE: Confirmed this pattern works for any entity"
+APPLIED FROM user-model: validate_X pattern, is_valid(), to_dict()"
 
-goto main -m "Product model complete, same pattern as User"
+goto main -m "Product model complete"
 '''
 
 
@@ -391,12 +366,8 @@ def run_comparison():
             print("Starting NEW PROJECT (but can access memory from Project A)")
             print("-"*40)
 
-            # Clear working messages but KEEP notes
-            for branch in store.branches.values():
-                branch.messages = []
-
-            # Switch back to main for new project
-            store.current_branch = "main"
+            # Use new_project API to start fresh project (keeps notes, clears main)
+            store.new_project("ecommerce-api")
 
             # Project B - new directory but has access to notes
             branch_b, _ = run_task(

@@ -29,50 +29,86 @@ This leads to **Context Drift** (forgetting instructions) and **Exponential Cost
 Manage the agent's active reasoning space.
 
 *   **`scope <name> -m "<reason>"`**
-    *   **Action:** Creates a new reasoning scope (branch) and switches to it.
-    *   **Behavior:** The current working memory is cleared. The new scope inherits only the high-level history.
-    *   **Best Practice:** Use Git-style namespaces like `plan/task-x`, `fix/issue-y`, or `research/lib-z`.
+    *   Creates a new reasoning scope (branch) and switches to it.
+    *   Best Practice: Use Git-style namespaces like `plan/task-x`, `fix/issue-y`.
 *   **`goto <name> -m "<summary>"`**
-    *   **Action:** Switches back to an existing scope.
-    *   **Behavior:** Restores the target's working memory. The summary message is recorded in the target scope's journal to ensure continuity.
-*   **`scopes`**
-    *   **Action:** Lists all active reasoning scopes.
+    *   Switches back to an existing scope.
 *   **`status`**
-    *   **Action:** Shows current scope, working message count, and memory statistics (insights/notes count).
+    *   Shows current scope, all scopes (grouped by project), and memory stats with action hints.
 
 ### 2. Knowledge Persistence
 Save technical knowledge before clearing the context.
 
 *   **`note -m "<message>"`** (Episodic)
-    *   **Scope:** Local to the current scope.
-    *   **Usage:** Record specific technical details, file paths, or intermediate results.
+    *   Scope: Local to the current scope.
+    *   Usage: Record specific technical details, file paths, or intermediate results.
 *   **`insight -m "<message>"`** (Semantic)
-    *   **Scope:** Global. Visible from any scope.
-    *   **Usage:** Record project-wide rules, architecture patterns, or universal truths discovered.
-    *   **Hygiene:** If discovered during a task, open the task scope first, then record the insight to keep the `main` scope clean.
+    *   Scope: Global. Visible from any scope.
+    *   Usage: Record project-wide rules, architecture patterns, or universal truths discovered.
 
 ### 3. Memory Retrieval (The "Pull")
 Load knowledge into working memory only when needed.
 
-*   **`notes [scope]`**
-    *   **Behavior:** Returns the "Journal" of episodic notes. If no scope is provided, returns notes from **all scopes** grouped by day in Git-log style.
-    *   **Format:** `Date: Day Mon DD HH:MM:SS YYYY ZZZZ`
-*   **`insights`**
-    *   **Behavior:** Returns all global semantic insights grouped by day.
+*   **`notes`** — Returns all episodic notes from all scopes.
+*   **`notes <scope>`** — Returns notes from a specific scope.
+*   **`insights`** — Returns all global semantic insights.
+
+---
+
+## Project Management (Developer API)
+
+For multi-project workflows, developers can use the `new_project()` API:
+
+```python
+from ctx_store import ContextStore
+
+store = ContextStore()
+# ... agent works on Project A ...
+
+store.new_project("project-b")  # Developer calls this
+# - Marks existing scopes as "previous project"
+# - Clears main working messages (notes preserved)
+# - Agent can still access previous project's notes via `notes <scope>`
+```
+
+The `status` command shows scopes grouped by project:
+
+```
+On scope: product-model
+Working messages: 0
+
+Current Project: ecommerce-api
+  Scopes:
+    - main
+    ● product-model (1 notes)
+
+Previous Projects:
+  [auth-service]
+    Scopes:
+      - user-model (1 notes)
+
+Memory:
+  Insights: 1
+  Notes: 2
+
+Actions:
+  note -m "..."       Record to current scope
+  insight -m "..."    Record global pattern
+  notes               Recall all episodic memory
+  notes <scope>       Recall scope episodic memory
+  insights            Recall semantic memory
+```
 
 ---
 
 ## Strategic Workflow: The Planning Loop
 
-To solve complex engineering tasks without context bloat, agents follow this pattern:
-
-1.  **Open thinking space:** `scope plan/fix-auth -m "Reasoning about authentication bug"`
-2.  **Pull Knowledge:** 
-    *   `insights` (Check architectural rules)
-    *   `notes` (Check past attempts or related work)
-3.  **Synthesize Plan:** Reasoning happens in this clean, isolated space.
-4.  **Commit Result:** `goto main -m "Plan ready: Apply @authenticated decorator to all endpoints."`
-5.  **Execute Fix:** `scope fix/auth-decorator -m "Implementing the synthesized plan"`
+1.  **Check Status:** `status` — See available scopes and memory
+2.  **Pull Knowledge:** `notes`, `insights` — Load relevant context
+3.  **Open Scope:** `scope plan/fix-auth -m "Reasoning about auth bug"`
+4.  **Synthesize:** Reasoning happens in this clean, isolated space
+5.  **Record:** `note -m "..."` — Save what you learned
+6.  **Return:** `goto main -m "Plan ready: ..."`
 
 ---
 
@@ -98,3 +134,4 @@ pip install ctx-cli
 ## License
 
 MIT
+

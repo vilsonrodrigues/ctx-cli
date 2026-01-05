@@ -263,11 +263,17 @@ class ContextStore:
     insights: list[Insight] = field(default_factory=list)
     current_branch: str = "main"
     command_history: list[str] = field(default_factory=list)
+    # Project tracking (developer-controlled, not exposed to model)
+    current_project: str = "default"
+    _scope_to_project: dict[str, str] = field(default_factory=dict)
 
     def __post_init__(self):
         # Always ensure main branch exists
         if "main" not in self.branches:
             self.branches["main"] = Branch(name="main")
+        # Mark main as belonging to current project
+        if "main" not in self._scope_to_project:
+            self._scope_to_project["main"] = self.current_project
 
     def _generate_hash(self, content: str) -> str:
         """Generate a short hash."""
@@ -286,6 +292,35 @@ class ContextStore:
 
     def _get_current_branch(self) -> Branch:
         return self.branches[self.current_branch]
+
+    # =========================================================================
+    # Developer API (not exposed to model)
+    # =========================================================================
+
+    def new_project(self, name: str) -> None:
+        """
+        Start a new project. Developer API - not exposed to model.
+        
+        - Marks all current scopes as belonging to the previous project
+        - Clears main branch messages (notes are preserved for reference)
+        - Resets to main scope
+        """
+        # Mark all current project scopes as belonging to previous project
+        for scope_name in self.branches:
+            if self._scope_to_project.get(scope_name) == self.current_project:
+                self._scope_to_project[scope_name] = self.current_project
+        
+        # Update to new project
+        self.current_project = name
+        
+        # Clear main messages but preserve notes for reference
+        self.branches["main"].messages = []
+        
+        # Mark main as new project's scope
+        self._scope_to_project["main"] = name
+        
+        # Reset to main
+        self.current_branch = "main"
 
     # =========================================================================
     # Git-like Commands
@@ -411,6 +446,8 @@ class ContextStore:
                     for m in main_branch.messages
                 ]
                 self.branches[branch_name] = Branch(name=branch_name, messages=inherited_messages)
+                # Register new scope in current project
+                self._scope_to_project[branch_name] = self.current_project
             else:
                 return f"error: branch '{branch_name}' does not exist.", None
         
@@ -435,17 +472,69 @@ class ContextStore:
     def status(self) -> tuple[str, Event]:
         branch = self._get_current_branch()
         total_insights = len(self.insights)
-        total_scopes = len(self.branches)
+        
+        # Group scopes by project
+        current_project_scopes = []
+        previous_project_scopes: dict[str, list[tuple[str, int]]] = {}  # project -> [(scope, notes)]
+        
+        for scope_name in self.branches:
+            scope_project = self._scope_to_project.get(scope_name, self.current_project)
+            note_count = len(self.branches[scope_name].notes)
+            scope_info = (scope_name, note_count)
+            
+            if scope_project == self.current_project:
+                current_project_scopes.append(scope_info)
+            else:
+                if scope_project not in previous_project_scopes:
+                    previous_project_scopes[scope_project] = []
+                previous_project_scopes[scope_project].append(scope_info)
+        
+        # Calculate notes
         total_notes = sum(len(b.notes) for b in self.branches.values())
         
+        # Build output
         lines = [
             f"On scope: {self.current_branch}",
             f"Working messages: {len(branch.messages)}",
             "",
-            "Memory Stats:",
-            f"- Semantic Insights: {total_insights} recorded (Global)",
-            f"- Episodic Notes: {total_notes} entries (across {total_scopes} scopes)"
+            f"Current Project: {self.current_project}",
+            "  Scopes:",
         ]
+        
+        # Current project scopes
+        for scope_name, note_count in current_project_scopes:
+            marker = "●" if scope_name == self.current_branch else "-"
+            note_str = f" ({note_count} notes)" if note_count > 0 else ""
+            lines.append(f"    {marker} {scope_name}{note_str}")
+        
+        # Previous project scopes (if any)
+        if previous_project_scopes:
+            lines.append("")
+            lines.append("Previous Projects:")
+            for proj, scopes in previous_project_scopes.items():
+                lines.append(f"  [{proj}]")
+                lines.append("    Scopes:")
+                for scope_name, note_count in scopes:
+                    note_str = f" ({note_count} notes)" if note_count > 0 else ""
+                    lines.append(f"      - {scope_name}{note_str}")
+        
+        # Memory section
+        lines.append("")
+        lines.append("Memory:")
+        lines.append(f"  Insights: {total_insights}")
+        lines.append(f"  Notes: {total_notes}")
+        
+        # Action hints (only if there's memory to access or record)
+        lines.append("")
+        lines.append("Actions:")
+        lines.append("  note -m \"...\"       Record to current scope")
+        lines.append("  insight -m \"...\"    Record global pattern")
+        if total_notes > 0:
+            lines.append("  notes               Recall all episodic memory")
+            lines.append("  notes <scope>       Recall scope episodic memory")
+        if total_insights > 0:
+            lines.append("  insights            Recall semantic memory")
+        
         return "\n".join(lines), self._emit_event("status", {})
 
     def add_message(self, message: Message) -> None:
