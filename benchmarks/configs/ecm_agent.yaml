@@ -1,0 +1,24 @@
+# ECM Agent Configuration for MemoryAgentBench
+# Compatible with the benchmark framework
+
+agent_name: "ecm_agent"
+model: "gpt-4o-mini"
+temperature: 0.0
+
+# Context limits
+input_length_limit: 128000
+buffer_length: 1000
+
+# ECM-specific settings
+agent_chunk_size: 1000
+use_insights: true
+auto_scope: true
+
+# Retrieval settings (for compatibility with RAG-based agents)
+retrieve_num: 5
+
+# Output directory
+output_dir: "benchmarks/results/ecm"
+
+# Text embedding (for compatibility)
+text_embedding: "text-embedding-3-small"

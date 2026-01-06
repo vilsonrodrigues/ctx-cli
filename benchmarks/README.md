@@ -1,77 +1,207 @@
-# Benchmarks
+# ECM Benchmarks
 
-Experimental evaluation of explicit context management.
+Comprehensive evaluation suite for Explicit Context Management (ECM) with official benchmark harness integrations.
 
-## Benchmark Suite
+## Directory Structure
 
-### 1. Token Economics (Internal)
-
-Compare LINEAR vs SCOPE approaches on controlled tasks:
-
-| Task | Description | Metrics |
-|------|-------------|---------|
-| `multi_step_coding` | 12-step blog platform design | Peak tokens, total tokens, growth |
-| `knowledge_transfer` | Cross-project pattern reuse | Notes accessed, patterns applied |
-| `alternative_exploration` | OT vs CRDT architecture | Scope isolation, comparison quality |
-
-```bash
-uv run python benchmarks/run_internal.py
+```
+benchmarks/
+├── core/                      # Shared infrastructure
+│   ├── harness_protocol.py    # Abstract harness interface
+│   ├── base_agent.py          # Base agent class
+│   └── metrics.py             # Token & correctness metrics
+│
+├── harnesses/                 # Official benchmark integrations
+│   ├── swe_bench_cl/          # SWE-Bench-CL (thomasjoshi/agents-never-forget)
+│   ├── lifelong_agent_bench/  # LifelongAgentBench (caixd-220529/LifelongAgentBench)
+│   ├── appworld/              # AppWorld (StonyBrookNLP/appworld)
+│   └── osworld/               # OSWorld (xlang-ai/OSWorld)
+│
+├── retrieval/                 # Retrieval benchmarks (NOT continual learning)
+│   ├── run_locomo_semantic.py # LOCOMO semantic evaluation
+│   └── run_locomo_style.py    # LOCOMO style evaluation
+│
+├── runners/                   # Unified CLI runners
+│   └── run_benchmark.py       # Main benchmark runner
+│
+├── memory/                    # Memory agent implementations
+│   └── agents/                # ECM, RAG, Mem0, Letta agents
+│
+├── results/                   # Benchmark results (JSON)
+├── configs/                   # Configuration files
+└── deprecated/                # Archived broken implementations
 ```
 
-### 2. LOCOMO (Long-term Conversation Memory)
-
-Evaluate on subset of LOCOMO benchmark:
-- Single-hop QA (factual recall)
-- Multi-hop QA (reasoning across turns)
-- Temporal QA (time-based reasoning)
+## Quick Start
 
 ```bash
-uv run python benchmarks/run_locomo.py
+# Install dependencies
+uv sync --all-groups
+
+# List available benchmarks
+uv run benchmarks/runners/run_benchmark.py --list
+
+# Run mini evaluation (quick validation)
+uv run benchmarks/runners/run_benchmark.py --benchmark swe-bench-cl --size mini
+
+# Run full evaluation (paper results)
+uv run benchmarks/runners/run_benchmark.py --benchmark swe-bench-cl --size full
 ```
 
-### 3. SWE-Bench-CL Style (Continual Learning)
+## Benchmark Categories
 
-Evaluate knowledge transfer across sequential coding tasks:
-- Task 1: Create User model
-- Task 2: Create Product model (should reuse patterns)
-- Task 3: Create Order model (should reuse patterns)
+### Continual Learning (CL) Benchmarks
+
+These are the primary evaluation targets for ECM. They test **knowledge retention across sequential tasks**.
+
+| Benchmark | Tasks | Description |
+|-----------|-------|-------------|
+| **SWE-Bench-CL** | 273 | GitHub issues in 8 repository sequences |
+| **LifelongAgentBench** | 1,400 | Skill reuse in DB/OS/KG environments |
+
+#### SWE-Bench-CL
+
+Tests agent ability to learn and reuse patterns within a codebase:
 
 ```bash
-uv run python benchmarks/run_swe_cl.py
+# Run Django sequence
+uv run benchmarks/runners/run_benchmark.py \
+  --benchmark swe-bench-cl \
+  --sequence django \
+  --size mini
+
+# Run with baseline comparison
+uv run benchmarks/runners/run_benchmark.py \
+  --benchmark swe-bench-cl \
+  --compare-baseline
 ```
+
+**Setup:** See `harnesses/swe_bench_cl/SETUP.md`
+
+#### LifelongAgentBench
+
+Tests skill transfer across database, OS, and knowledge graph tasks:
+
+```bash
+# Run DB environment
+uv run benchmarks/runners/run_benchmark.py \
+  --benchmark lifelong-agent-bench \
+  --environment db \
+  --size mini
+
+# Run all environments
+uv run benchmarks/runners/run_benchmark.py \
+  --benchmark lifelong-agent-bench \
+  --environment all
+```
+
+**Setup:** See `harnesses/lifelong_agent_bench/SETUP.md`
+
+### Long-Horizon Benchmarks
+
+These test multi-step task completion with accumulated context:
+
+| Benchmark | Tasks | Description |
+|-----------|-------|-------------|
+| **AppWorld** | 750 | Multi-app interaction (9 apps) |
+| **OSWorld** | 369 | Desktop automation (Ubuntu VM) |
+
+#### AppWorld
+
+Tests agent ability to complete multi-step tasks across applications:
+
+```bash
+uv run benchmarks/runners/run_benchmark.py \
+  --benchmark appworld \
+  --size mini
+```
+
+**Setup:** `pip install appworld && appworld install`
+
+#### OSWorld
+
+Tests desktop automation with real VM environments:
+
+```bash
+uv run benchmarks/runners/run_benchmark.py \
+  --benchmark osworld \
+  --size mini
+```
+
+**Setup:** See `harnesses/osworld/SETUP.md` (requires Docker or VMware)
+
+### Retrieval Benchmarks (NOT CL)
+
+These are **NOT continual learning** benchmarks but useful baselines:
+
+```bash
+# LOCOMO - Long context memory
+uv run benchmarks/retrieval/run_locomo_semantic.py
+
+# MemoryAgentBench - Accurate Retrieval
+uv run benchmarks/run_memoryagentbench.py --sub-dataset AR
+```
+
+## Evaluation Sizes
+
+| Size | Tasks | Use Case |
+|------|-------|----------|
+| `mini` | 5-10 | Quick validation during development |
+| `small` | 15-30 | Intermediate testing |
+| `full` | 50-273 | Paper evaluation |
 
 ## Metrics
 
 ### Token Metrics
-- **Base Input**: System + tools + user (cacheable)
-- **Peak Input**: Maximum tokens per API call
-- **Growth**: Peak - Base (actual context growth)
-- **Total Input**: Sum across all API calls
-- **Total Output**: Generation tokens
 
-### Memory Metrics
-- **Notes Created**: Number of episodic memories
-- **Notes Accessed**: Cross-scope memory retrieval
-- **Pattern Transfer**: Successful pattern reuse rate
+- **Peak Context**: Maximum context window size reached
+- **Final Context**: Context size at end of sequence
+- **Growth Rate**: Tokens added per task
+- **Total I/O**: Total input/output tokens used
 
-### Task Metrics
-- **Completion Rate**: Tasks successfully completed
-- **Accuracy**: Correctness of output
-- **Iterations**: API calls to completion
+### Correctness Metrics
 
-## Running Benchmarks
-
-```bash
-# Install dependencies
-uv sync
-
-# Run all benchmarks
-uv run python benchmarks/run_all.py
-
-# Run specific benchmark
-uv run python benchmarks/run_internal.py --task multi_step_coding
-```
+- **Success Rate**: Percentage of tasks completed correctly
+- **Forward Transfer (FWT)**: Performance gain from prior knowledge
+- **Backward Transfer (BWT)**: Impact on earlier task performance
+- **Knowledge Retention (KRT)**: Accuracy on callback questions
 
 ## Results
 
-Results are saved to `benchmarks/results/` in JSON format.
+Results are saved to `benchmarks/results/`:
+
+```
+results/
+├── swe-bench-cl_mini_20250106_123456.json
+├── appworld_full_20250106_234567.json
+└── ...
+```
+
+Each result includes:
+- Token trajectory (per-task context sizes)
+- Correctness metrics
+- Execution logs
+- Configuration used
+
+## Critical Rules
+
+1. **NEVER reset agent between CL tasks** - Memory must persist
+2. **ALWAYS use official harness verification** - No heuristics
+3. **ALWAYS track tokens** - Use `CumulativeTokenReport`
+4. **DO reset between sequences** - New episode = fresh state
+
+## Adding New Benchmarks
+
+1. Create harness directory: `harnesses/{name}/`
+2. Implement `OfficialHarness` protocol in `adapter.py`
+3. Create `SETUP.md` with installation instructions
+4. Register in `harnesses/__init__.py`
+5. Add config to `runners/run_benchmark.py`
+
+## Requirements
+
+- Python 3.9+
+- `uv` package manager
+- `OPENAI_API_KEY` environment variable
+- Docker (for SWE-Bench-CL test execution)
+- Optional: VM setup for OSWorld

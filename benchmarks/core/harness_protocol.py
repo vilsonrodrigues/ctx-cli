@@ -344,7 +344,18 @@ class HarnessAdapter:
         Override in subclasses for harness-specific prompt formatting.
         """
         prompt = self._build_prompt(task)
-        result = self.agent.query(prompt)
+
+        # Pass combined system prompt if agent supports it
+        system_prompt = getattr(self, 'SYSTEM_PROMPT', None)
+        if system_prompt and hasattr(self.agent, 'query'):
+            import inspect
+            sig = inspect.signature(self.agent.query)
+            if 'system_prompt' in sig.parameters:
+                result = self.agent.query(prompt, system_prompt=system_prompt)
+            else:
+                result = self.agent.query(prompt)
+        else:
+            result = self.agent.query(prompt)
 
         # Normalize: agent returns 'answer', harness expects 'agent_output'
         if "answer" in result and "agent_output" not in result:

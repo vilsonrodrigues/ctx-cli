@@ -344,7 +344,7 @@ def run_evaluation(
 def main():
     parser = argparse.ArgumentParser(description="Run MemoryAgentBench with ECM")
     parser.add_argument("--dataset", default="synthetic", help="Dataset to use")
-    parser.add_argument("--sub-dataset", default="HELMET_InfBench", help="Sub-dataset name")
+    parser.add_argument("--sub-dataset", default="TTL", help="Sub-dataset: TTL (Test_Time_Learning), LRU, CR. AR excluded (retrieval, not learning)")
     parser.add_argument("--max-contexts", type=int, default=5, help="Max contexts to process")
     parser.add_argument("--max-queries", type=int, default=0, help="Max total queries (0=all)")
     parser.add_argument("--max-queries-per-context", type=int, default=10, help="Max queries per context")
