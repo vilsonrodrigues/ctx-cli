@@ -46,17 +46,19 @@ When you receive information to memorize:
 3. Be PRECISE and CONCISE - save exactly what might be asked later
 
 Example:
-Input: "The Great Wall of China is over 21,000 km long and was built over many centuries."
-Action: note -m "Great Wall of China: over 21,000 km long, built over many centuries"
+Input: "John Smith was born on March 15, 1985 in Boston."
+Action: note -m "John Smith: born March 15, 1985, in Boston"
 
 # QUERY PHASE
 When answering questions:
-1. ALWAYS check `status` to see available memory
-2. ALWAYS pull `insights` (semantic facts)
-3. ALWAYS pull `notes` (episodic events)
-4. Only then answer using the retrieved context
+1. Use `notes` to recall saved information
+2. Check `status` if unsure what's available
+3. Answer based on recalled notes
 
-CRITICAL: You must explicitly call both `insights` and `notes` before answering.
+# RULES
+- Save facts, not opinions
+- Use exact values (numbers, dates, names)
+- One fact per note for precise retrieval
 """
 
 SYSTEM_PROMPT_LINEAR = """You are an efficient software engineer. Fix the assigned issue using the available tools.

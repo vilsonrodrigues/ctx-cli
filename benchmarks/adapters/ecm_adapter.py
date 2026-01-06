@@ -120,6 +120,10 @@ class ECMAgentWrapper:
         self.temperature = agent_config.get('temperature', 0.0)
         self.max_tokens = dataset_config.get('generation_max_length', 4000)
         self.max_tool_rounds = agent_config.get('max_tool_rounds', 10)
+        
+        # Thread safety
+        import threading
+        self._lock = threading.Lock()
 
         # Initialize components
         self.store = ContextStore()
@@ -139,6 +143,59 @@ class ECMAgentWrapper:
             self.tokenizer = tiktoken.encoding_for_model(self.model)
         except KeyError:
             self.tokenizer = tiktoken.encoding_for_model("gpt-4o-mini")
+
+    def _run_tool_loop(self, messages: list[dict], max_rounds: int = 10) -> str:
+        """
+        Run the tool loop.
+        Expects the model to output tool calls based on messages.
+        Executes tools and feeds back results until model produces final answer or max rounds.
+        """
+        # Ensure we always define the tools
+        tools = [CTX_CLI_TOOL]
+
+        for round_num in range(max_rounds):
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+            )
+
+            assistant_message = response.choices[0].message
+            # Append assistant message to history
+            messages.append(assistant_message.model_dump())
+
+            if not assistant_message.tool_calls:
+                # No more tools, return content
+                return assistant_message.content or ""
+
+            # Execute tools
+            for tool_call in assistant_message.tool_calls:
+                if tool_call.function.name == "ctx_cli":
+                    args = json.loads(tool_call.function.arguments)
+                    command = args.get("command", "")
+                    
+                    # Execute with lock
+                    with self._lock:
+                        result, event = execute_command(self.store, command)
+                    
+                    # Log
+                    cmd_type = command.split()[0].upper() if command else "UNKNOWN"
+                    self.logger.log(cmd_type, f"ctx_cli {command}")
+                    
+                    # Store metrics if event
+                    if event:
+                         self.metrics_collector.track_operation(event["type"], 0.0) # Duration negligible here
+
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result
+                    })
+        
+        return messages[-1].get("content", "")
 
     def _count_tokens(self, text: str) -> int:
         return len(self.tokenizer.encode(text, disallowed_special=()))
