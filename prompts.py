@@ -85,6 +85,8 @@ RULES
    This is the recommended pattern for chaining work.
 4. After return, the scope is gone forever.
 5. Only notes survive. Everything else is discarded.
+6. Multiple commands can be separated by ;
+   Example: return -m "done"; scope plan/next -m "starting"
 
 ─────────────────────────────────────────────────────────
 WORKFLOW

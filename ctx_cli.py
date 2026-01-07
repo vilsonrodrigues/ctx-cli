@@ -16,21 +16,26 @@ CTX_CLI_TOOL = {
     "type": "function",
     "function": {
         "name": "ctx_cli",
-        "description": """Context management for LLM reasoning.\n\nCORE COMMANDS:
-  scope <name> -m "<note>"   Create new reasoning scope. Use namespaces (e.g., plan/task-x, fix/bug-y).
-  return -m "<note>"         Return to main and finalize current scope. Scope cannot be reopened.
-  note -m "<message>"        Record episodic memory (event) in current scope.
-  insight -m "<message>"     Record semantic memory (global fact/pattern).
-  status                     Show current scope, all scopes (by project), and memory stats.
-  notes                      List ALL episodic notes (Journal).
-  insights                   List all global semantic insights.
+        "description": """Context management for LLM reasoning.
 
-WORKFLOW FOR PLANNING:
-  1. ctx_cli scope plan/my-task -m "Building plan for task X"
-  2. ctx_cli insights           # Check global rules
-  3. ctx_cli notes              # Check history
-  4. [Synthesize Plan]
-  5. ctx_cli return -m "Plan ready: ..."
+CORE COMMANDS:
+  scope <name> -m "<note>"   Create new scope (only from main).
+  return -m "<note>"         Finalize scope and return to main.
+  note -m "<message>"        Record episodic memory in current scope.
+  insight -m "<message>"     Record semantic memory (global).
+  status                     Show current state and memory stats.
+  notes                      List all episodic notes.
+  notes <scope>              List notes from specific scope.
+  insights                   List all global insights.
+
+MULTIPLE COMMANDS:
+  Separate with ; to run multiple commands in one call.
+  Example: return -m "done"; scope plan/next -m "starting"
+
+WORKFLOW:
+  1. scope plan/task -m "Goal..."
+  2. [work, take notes]
+  3. return -m "[SUMMARY]... [DECISION]... [NEXT]..."
 """,
         "parameters": {
             "type": "object",
@@ -46,6 +51,31 @@ WORKFLOW FOR PLANNING:
 }
 
 def execute_command(store: ContextStore, command: str) -> tuple[str, Event | None]:
+    """Execute one or more ctx_cli commands. Multiple commands can be separated by ;"""
+    # Split by ; to support multiple commands
+    commands = [c.strip() for c in command.split(';') if c.strip()]
+    
+    if not commands:
+        return "Error: Empty command", None
+    
+    # If single command, execute directly
+    if len(commands) == 1:
+        return _execute_single_command(store, commands[0])
+    
+    # Multiple commands: execute each and collect results
+    results = []
+    last_event = None
+    for cmd in commands:
+        result, event = _execute_single_command(store, cmd)
+        results.append(f"[{cmd.split()[0]}] {result}")
+        if event:
+            last_event = event
+    
+    return "\n".join(results), last_event
+
+
+def _execute_single_command(store: ContextStore, command: str) -> tuple[str, Event | None]:
+    """Execute a single ctx_cli command."""
     try:
         tokens = shlex.split(command.strip())
     except Exception as e:

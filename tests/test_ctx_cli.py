@@ -61,6 +61,9 @@ class TestGitStyleCLI:
         store.checkout("scope-a", "starting a", create=True)
         store.note("note in a")
         
+        # Return to main before creating another scope (new rule)
+        store.return_to_main("done with a")
+        
         store.checkout("scope-b", "starting b", create=True)
         store.note("note in b")
         
@@ -85,7 +88,7 @@ class TestGitStyleCLI:
     def test_scope_with_namespaces(self):
         store = ContextStore()
         res, _ = execute_command(store, 'scope plan/my-task -m "thinking"')
-        assert "Switched to branch 'plan/my-task'" in res
+        assert "Switched to scope 'plan/my-task'" in res
         assert store.current_branch == "plan/my-task"
 
 def test_git_date_format_precision():
