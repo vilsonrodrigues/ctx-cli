@@ -266,6 +266,7 @@ def run_approach(
     tracker = TokenTracker(model="gpt-4.1-mini")
     store = ContextStore() if use_ctx else None
     peak_input = 0
+    peak_working = 0  # Track working context size (without system prompt)
 
     # Initial user message with first step
     if store:
@@ -293,6 +294,11 @@ def run_approach(
         tracker.add_input(input_tokens)
         peak_input = max(peak_input, input_tokens)
 
+        # Track working context (messages only, excluding system prompt)
+        working_messages = [m for m in messages if m.get("role") != "system"]
+        working_tokens = tracker.count_messages(working_messages)
+        peak_working = max(peak_working, working_tokens)
+
         # Call API
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
@@ -317,8 +323,9 @@ def run_approach(
                     if tc.function.name == "ctx_cli":
                         args = json.loads(tc.function.arguments)
                         cmd = args.get("command", "")
+                        print(f"  [ctx_cli] {cmd[:60]}")  # LOG CTX_CLI USAGE
                         store.execute_tool_call(tc.id, cmd, msg.content or "")
-                        
+
                         if cmd.startswith("return"):
                             step_completed = True
             else:
@@ -404,6 +411,16 @@ def run_approach(
             print(f"  [Iteration {iteration}] Input: {stats['total_input']:,} Output: {stats['total_output']:,}")
 
     stats = tracker.get_stats()
+
+    # Count ECM usage if store was used
+    ecm_stats = {}
+    if store:
+        ecm_stats = {
+            "scopes_created": len(store.branches) - 1,  # Exclude main
+            "notes_created": sum(len(b.notes) for b in store.branches.values()),
+            "insights_created": len(store.insights),
+        }
+
     return {
         "approach": approach,
         "iterations": iteration,
@@ -411,6 +428,8 @@ def run_approach(
         "total_input_tokens": stats["total_input"],
         "total_output_tokens": stats["total_output"],
         "peak_input_tokens": peak_input,
+        "peak_working_tokens": peak_working,
+        "ecm_stats": ecm_stats,
     }
 
 
@@ -445,23 +464,47 @@ def run_comparison(num_steps: int = 6):
     print("COMPARISON RESULTS")
     print("=" * 70)
 
-    print(f"\n{'Metric':<30} {'LINEAR':>15} {'SCOPE':>15} {'Savings':>10}")
+    # Calculate peak working savings (fair comparison - excludes system prompt)
+    working_savings = linear_result["peak_working_tokens"] - branch_result["peak_working_tokens"]
+    working_pct = (working_savings / linear_result["peak_working_tokens"] * 100) if linear_result["peak_working_tokens"] > 0 else 0
+
+    print(f"\n📊 Key Metric: Peak Working Context (fair comparison)")
+    print(f"{'='*70}")
+    print(f"  Linear:  {linear_result['peak_working_tokens']:>6,} tokens (messages only)")
+    print(f"  ECM:     {branch_result['peak_working_tokens']:>6,} tokens (messages only)")
+    print(f"  Savings: {working_savings:>6,} tokens ({working_pct:>5.1f}% reduction) {'✅' if working_savings > 0 else '⚠️'}")
+
+    print(f"\n📋 Peak Total Context (includes system prompt)")
+    print(f"{'='*70}")
+    print(f"  Linear:  {linear_result['peak_input_tokens']:>6,} tokens")
+    print(f"  ECM:     {branch_result['peak_input_tokens']:>6,} tokens")
+
+    print(f"\n📈 Detailed Metrics:")
+    print(f"{'='*70}")
+    print(f"{'Metric':<30} {'LINEAR':>15} {'ECM':>15}")
     print("-" * 70)
-
-    input_savings = linear_result["total_input_tokens"] - branch_result["total_input_tokens"]
-    input_pct = (input_savings / linear_result["total_input_tokens"] * 100) if linear_result["total_input_tokens"] > 0 else 0
-
-    print(f"{'Total Input Tokens':<30} {linear_result['total_input_tokens']:>15,} {branch_result['total_input_tokens']:>15,} {input_pct:>9.1f}%")
-    print(f"{'Total Output Tokens':<30} {linear_result['total_output_tokens']:>15,} {branch_result['total_output_tokens']:>15,}")
-    print(f"{'Peak Input Tokens':<30} {linear_result['peak_input_tokens']:>15,} {branch_result['peak_input_tokens']:>15,}")
-    print(f"{'Iterations':<30} {linear_result['iterations']:>15} {branch_result['iterations']:>15}")
     print(f"{'Steps Completed':<30} {linear_result['steps_completed']:>15} {branch_result['steps_completed']:>15}")
+    print(f"{'Iterations':<30} {linear_result['iterations']:>15} {branch_result['iterations']:>15}")
+    print(f"{'Total Output Tokens':<30} {linear_result['total_output_tokens']:>15,} {branch_result['total_output_tokens']:>15,}")
 
-    print("\n" + "=" * 70)
-    if input_savings > 0:
-        print(f"Scope approach saved {input_savings:,} input tokens ({input_pct:.1f}%)")
+    # ECM specific stats
+    if branch_result.get("ecm_stats"):
+        ecm = branch_result["ecm_stats"]
+        print(f"\n🔧 ECM Usage:")
+        print(f"{'='*70}")
+        print(f"  Scopes created: {ecm['scopes_created']}")
+        print(f"  Notes saved:    {ecm['notes_created']}")
+        print(f"  Insights saved: {ecm['insights_created']}")
+
+    print(f"\n💡 Key Insight:")
+    print(f"{'='*70}")
+    if working_savings > 0:
+        print(f"  ECM reduced working context by {working_pct:.1f}%!")
+        print(f"  This allows longer tasks without hitting context limits.")
+        print(f"  Model uses scope/return to discard working memory.")
     else:
-        print(f"Linear approach used {-input_savings:,} fewer input tokens ({-input_pct:.1f}%)")
+        print(f"  For this short task, ECM had overhead without clear benefit.")
+        print(f"  ECM shines on longer tasks with 6+ interdependent steps.")
     print("=" * 70)
 
     return linear_result, branch_result

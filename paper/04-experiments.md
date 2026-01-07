@@ -1,6 +1,17 @@
 # 4. Experiments
 
-We evaluate explicit context management across three experimental scenarios designed to measure token economics and knowledge retention capabilities.
+We evaluate Explicit Context Management (ECM) across four experimental scenarios designed to measure token economics and knowledge retention capabilities.
+
+## 4.0 Benchmark Selection Rationale
+
+Recent benchmarks for long-horizon agents include OdysseyBench [32] (office workflows), AppWorld [33] (interactive coding), TheAgentCompany [34] (enterprise tasks), and MemoryBench [35] (memory evaluation). We selected **SWE-Bench-CL** [30] as our primary benchmark because:
+
+1. **Continual learning focus**: Tasks are chronologically ordered, enabling measurement of forward/backward knowledge transfer
+2. **Sequential context accumulation**: Each task builds on knowledge from previous fixes—the exact scenario where ECM provides value
+3. **Established baseline**: Enables comparison with linear conversation agents and learned compression approaches
+4. **Reproducibility**: Open-source dataset with well-defined evaluation metrics
+
+We complement SWE-Bench-CL with synthetic tasks (multi-step design, knowledge transfer, alternative exploration) to isolate specific ECM capabilities.
 
 ## 4.1 Experimental Setup
 
@@ -140,7 +151,7 @@ We measure whether the agent can recall specific details from each approach when
 
 ### 4.5.1 Task Description
 
-We adapt the SWE-Bench-CL benchmark [20] to evaluate knowledge transfer across sequential GitHub issue resolution tasks. SWE-Bench-CL organizes 273 tasks from 8 repositories into chronologically ordered sequences, simulating realistic software evolution.
+We adapt the SWE-Bench-CL benchmark [30] to evaluate knowledge transfer across sequential GitHub issue resolution tasks. SWE-Bench-CL organizes 273 tasks from 8 repositories into chronologically ordered sequences, simulating realistic software evolution.
 
 For our evaluation, we use a simplified version that measures context window growth rather than actual code correctness:
 
@@ -190,13 +201,14 @@ To ensure fair comparison:
 5. **Temperature**: Set to 0.7 for all runs
 6. **Max iterations**: Capped at 20 per task to prevent runaway execution
 
-## 4.6 Limitations
+## 4.7 Limitations
 
 Our experimental design has limitations:
 
-1. **Single model**: Results may not generalize to other models
-2. **Synthetic tasks**: Real-world agent tasks may differ in structure
-3. **Prompted behavior**: Scope treatment success depends on agent following workflow
-4. **No human evaluation**: We measure tokens, not output quality
+1. **Single model**: Results may not generalize to other models (though ECM is model-agnostic by design)
+2. **Synthetic tasks**: Tasks 1-3 are synthetic; real-world agent tasks may differ in structure
+3. **Prompted behavior**: ECM success depends on agent following workflow—a tradeoff we discuss in Section 6
+4. **No comparison with learned approaches**: We compare against linear baselines, not Context-Folding or AgentFold (which require different model training)
+5. **Token metrics only**: We measure efficiency, not solution quality (addressed in Section 6)
 
-We address output quality in Section 6 through task completion metrics.
+We note that learned compression approaches (Context-Folding, AgentFold, CaT) achieve similar or better compression ratios but require training infrastructure that ECM avoids.

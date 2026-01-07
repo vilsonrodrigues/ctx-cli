@@ -42,20 +42,71 @@ Unlike traditional memory systems that inject history automatically, ECM adopts 
 
 *Rationale*: By removing automatic injection, the working memory remains constant regardless of the total history size. Knowledge is only loaded into the prompt when the agent explicitly requests it via tools (e.g., `ctx_cli insights`).
 
-## 3.4 Command Interface and Planning Workflow
+## 3.4 Command Interface
 
-The model interacts with C through a structured tool interface.
+The model interacts with C through a structured tool interface implementing graph-based navigation.
 
 | Command | Logical Operation | Tier | Effect |
 |---------|-------------------|------|--------|
-| `scope <name> -m "..."` | S_origin -> S_new | Working | Creates a clean reasoning space. |
-| `note -m "..."` | N_S <- n_new | Episodic | Records a technical event in current scope. |
-| `insight -m "..."` | I <- i_new | Semantic | Records a global rule or pattern. |
-| `notes` | Output N_all | Episodic | Returns global history from all scopes. |
-| `insights` | Output I | Semantic | Returns all global project truths. |
+| `scope <name> -m "..."` | Create S_new, goto S_new | Working | Creates and enters a new reasoning space |
+| `goto <name> -m "..."` | Navigate to S_target | Working | Switches to existing scope |
+| `note -m "..."` | N_S ← n_new | Episodic | Records event in current scope |
+| `insight -m "..."` | I ← i_new | Semantic | Records global knowledge |
+| `notes [scope]` | Output N_scope or N_all | Episodic | Retrieves episodic memory |
+| `insights` | Output I | Semantic | Retrieves semantic memory |
+| `status` | Output state | Meta | Shows current scope, message count, memory stats |
+| `scopes` | Output all S | Meta | Lists all existing scopes |
 
-### 3.4.1 The Planning Workflow
-To maintain cognitive continuity without context pollution, ECM agents utilize **Planning Scopes** (e.g., `plan/new-task`). The agent opens a clean scope, pulls relevant insights and notes, synthesizes a plan, and returns to `main` with only the conclusion. This "thinking space" ensures that the complexity of planning does not bloat the implementation context.
+### 3.4.1 Graph-Based Navigation
+
+Unlike stack-based approaches (Context-Folding's `branch/return`), ECM implements **graph-based navigation**. Scopes form a directed graph where:
+- Any scope can be created from any other scope
+- Navigation via `goto` can target any existing scope, regardless of creation order
+- There is no enforced parent-child hierarchy or LIFO constraint
+
+This enables exploration patterns impossible with stack-based systems:
+
+```
+        ┌─── research/approach-A ───┐
+main ───┼─── research/approach-B    │ (free navigation)
+        └─── implement/chosen ──────┘
+```
+
+An agent can explore `research/approach-A`, switch to `research/approach-B` without completing A, return to A for additional investigation, and finally implement the chosen approach—all without the constraints of hierarchical decomposition.
+
+### 3.4.2 Asymmetric Note Placement
+
+Scope transitions require mandatory notes that follow **asymmetric placement semantics**:
+
+**On `scope` (departure):** The `-m` message becomes a **departure note** stored in the *origin* scope, documenting why the agent is leaving and what it intends to do.
+
+**On `goto` (arrival):** The `-m` message becomes an **arrival note** stored in the *destination* scope, summarizing what was accomplished and why the agent is returning.
+
+This asymmetry preserves causal narrative across disjoint memory spaces:
+
+```
+scope: main
+  note: "Going to investigate auth bug in user.py:142"
+
+scope: fix/auth-bug
+  [... working memory with investigation ...]
+  note: "Root cause: missing null check. Fix applied."
+
+scope: main (after goto)
+  note: "Auth bug fixed. Null check added to user.py:142"
+```
+
+### 3.4.3 The Planning Workflow
+
+To maintain cognitive continuity without context pollution, ECM agents utilize **Planning Scopes** (e.g., `plan/new-task`). The workflow:
+
+1. **Open thinking space:** `scope plan/task-x -m "Reasoning about task X"`
+2. **Pull knowledge:** `insights` and `notes` to load relevant context
+3. **Synthesize plan:** Reasoning occurs in isolated working memory
+4. **Commit result:** `goto main -m "Plan complete: [summary]"`
+5. **Execute:** `scope implement/task-x -m "Implementing plan"`
+
+This pattern ensures that planning complexity does not bloat implementation context, while preserving the plan's conclusions in the main scope's episodic memory.
 
 ## 3.5 Token Economics
 

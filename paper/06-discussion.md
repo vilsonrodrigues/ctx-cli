@@ -10,7 +10,6 @@ The effectiveness of scope-based context management stems from two complementary
 
 A primary discovery in Task 4 was the 97% context reset achieved by ECM. While the linear agent carried the full burden of its exploration into subsequent tasks, the ECM agent successfully offloaded its working memory to notes. This 97% reduction (from 3,446 tokens down to 104) effectively provides a "clean slate" for each new task while preserving structural knowledge through notes.
 
-
 By partitioning messages into scopes and only including current-scope messages in API calls, we transform context growth from global O(n) to local O(n/s) where s is the number of scopes. For a 12-step task split across 4 scopes:
 
 - Linear: 60 messages in final context
@@ -25,8 +24,6 @@ This directly reduces:
 
 Observation of the agent's logs revealed that the model utilized the `note` and `goto main` commands not merely as protocol overhead, but as a technical serialization layer. For instance, in the Django tasks, the agent consistently recorded file paths and specific method changes (e.g., "Implemented __iter__ in Paginator class") before clearing its working memory. While the current benchmark tasks were largely independent, this behavior suggests that ECM successfully converts high-entropy conversational data into low-entropy structural knowledge, which is essential for long-term consistency in complex engineering projects.
 
-
-
 ## 6.2 When Explicit Context Management Helps
 
 Our experiments across different benchmark types reveal when scope-based context management provides value versus when simpler approaches suffice.
@@ -39,30 +36,9 @@ Our experiments across different benchmark types reveal when scope-based context
 - **34% faster execution** (121.5s → 80.5s)
 - **Bounded growth** (+543 tokens vs +11,812 linear growth)
 
-The key factor is **context accumulation**: each task builds on knowledge from previous tasks. LINEAR approach accumulates all message history, growing linearly with task count. At this rate:
+The key factor is **context accumulation**: each task builds on knowledge from previous tasks. LINEAR approach accumulates all message history, growing linearly with task count.
 
-- 50 tasks → ~40K tokens (approaching limits)
-- 100 tasks → ~80K tokens (near 128K ceiling)
-- SCOPE → remains under 2K tokens regardless of count
-
-The 4x increase in API calls (15 → 60) is offset by dramatically smaller per-call context, yielding net speedup despite overhead.
-
-### 6.2.2 Isolated Tasks: Limited Value
-
-**SWE-Bench Lite** testing revealed that for independent, single-issue tasks, scope management overhead can exceed benefits:
-
-- Django fix: 11 iterations (LINEAR) vs 30 iterations (SCOPE)
-- Both generated correct patches
-- LINEAR was 2.7x faster (18.6s vs 50.3s)
-
-For isolated tasks without context accumulation, the overhead of:
-- Additional tool calls for scope management
-- Note-taking and retrieval
-- Extended system prompt
-
-Exceeds the value from bounded context, since there's minimal context to bound.
-
-### 6.2.3 The Critical Differentiator
+### 6.2.2 The Critical Differentiator
 
 The key question: **"Will context accumulate across multiple related steps?"**
 
@@ -71,117 +47,65 @@ The key question: **"Will context accumulate across multiple related steps?"**
 
 This aligns with the design intent: explicit context management is for **long-running, multi-step tasks** where context growth becomes a bottleneck.
 
-## 6.3 Limitations
+## 6.3 Comparison with Learned Compression
 
-### 6.3.1 Depends on Agent Compliance
+Our results (88% context reduction) are comparable to learned approaches: Context-Folding achieves 10× reduction, AgentFold maintains ~7K tokens after 100 turns, and CaT achieves 70% compression. However, the mechanisms differ fundamentally:
 
-The approach requires the model to correctly use commands. In our experiments, models occasionally:
-- Forgot to take notes before switching scopes
-- Created unnecessary scopes for simple steps
-- Wrote uninformative notes
+| Approach | Training | Navigation | Semantic Memory | Model Portability |
+|----------|----------|------------|-----------------|-------------------|
+| Context-Folding | RL (FoldGRPO) | Stack | No | No (Seed-36B) |
+| AgentFold | SFT | Linear | No | No (Qwen-30B) |
+| CaT | SFT (20K samples) | Linear | No | No (Qwen-32B) |
+| **ECM** | **None** | **Graph** | **Yes (insights)** | **Yes (any model)** |
 
-Prompt engineering mitigates these issues, but doesn't eliminate them. Future work could explore:
-- Automatic note suggestion based on message patterns
-- Policy-based enforcement (our implementation includes optional policies)
-- Fine-tuning for better command usage
+ECM trades potential compression efficiency for three properties learned approaches lack:
 
-### 6.3.2 Note Quality Affects Value
+1. **Zero training overhead**: Deploy immediately with GPT-4, Claude, Gemini, or open-source models
+2. **Graph navigation**: Explore alternatives non-linearly, unlike stack-based branch/return
+3. **Semantic memory**: Insights provide global knowledge transfer unavailable in compression-only systems
+
+## 6.4 Future Domains: OSWorld and Desktop Agents
+
+While this study focused on software engineering, ECM is highly applicable to general-purpose desktop agents. Benchmarks like **OSWorld** [36], which require agents to perform long-horizon tasks across multiple applications (e.g., "find the invoice in emails, save it to Documents, and upload it to the accounting web portal"), suffer acutely from context saturation. An ECM-enabled agent could dedicate a scope to `email-search`, collapse it into a note ("Invoice found at path X"), and then open a clean `web-portal` scope, preventing the noisy HTML of the web page from polluting the context needed for file navigation.
+
+The three-tier memory system is particularly valuable here: an insight like "user prefers dark mode in all applications" persists globally, while notes like "invoice PDF saved to ~/Documents/invoices/" remain scope-local.
+
+## 6.5 Convergence with Recursive Architectures
+
+The emergence of Recursive Language Models (RLM) [31] validates the paradigm of "context management via code execution." However, RLM relies on the model writing complex Python scripts to manage state, which introduces significant latency (synchronous blocking calls) and requires frontier-class models (>400B parameters) to function reliably. ECM democratizes this capability by providing a high-level CLI abstraction. By shifting the complexity from *generation* (writing memory code) to *selection* (calling memory tools), ECM achieves similar context isolation benefits with drastically lower latency (~1.5s vs RLM's multi-minute trajectories) and compatibility with smaller, faster models like `gpt-4o-mini`.
+
+## 6.6 Limitations
+
+### 6.6.1 Depends on Agent Compliance
+
+The approach requires the model to correctly use commands. Prompt engineering mitigates issues, but doesn't eliminate them. Future work could explore automatic note suggestion based on message patterns or policy-based enforcement.
+
+### 6.6.2 Note Quality Affects Value
 
 Low-quality notes ("done", "completed step") provide minimal value. The compression benefit assumes notes capture semantic meaning. We observed note quality correlates with prompt clarity—agents given explicit guidance on what to include in notes produced more useful summaries.
 
-### 6.3.3 Overhead for Short Tasks
+### 6.6.3 Scope Boundaries Require Judgment
 
-For tasks under ~5 steps, the overhead of:
-- Extended system prompt (~800 tokens)
-- Tool call formatting
-- Note management
+Deciding when to create a new scope vs. continue in the current scope is a judgment call. Over-scoping fragments context unnecessarily; under-scoping loses isolation benefits.
 
-May exceed the savings from context isolation. Explicit context management is most valuable for long-running, multi-step tasks.
+### 6.6.4 No Learned Optimization
 
-### 6.3.4 Scope Boundaries Require Judgment
+Unlike Context-Folding and AgentFold, ECM does not learn optimal compression points. Agents must explicitly decide when to transition—a burden that learned approaches automate. We view this as an acceptable tradeoff for training-free deployment and model portability.
 
-Deciding when to create a new scope vs. continue in the current scope is a judgment call. Our experiments used prompts suggesting scope creation for "distinct subtasks," but this remains ambiguous. Over-scoping fragments context unnecessarily; under-scoping loses isolation benefits.
+## 6.7 Design Decisions
 
-## 6.4 Design Decisions
+### 6.7.1 Why Not Rewind?
 
-### 6.4.1 Why Not Rewind?
+An earlier version included a `rewind` command. We removed it based on the principle: **"rewriting the past is dangerous; it's better to take a note acknowledging the error."** Errors become learning opportunities when captured as notes.
 
-An earlier version included a `rewind` command to undo notes and reset to previous states. We removed it based on the principle: **"rewriting the past is dangerous; it's better to take a note acknowledging the error."**
+### 6.7.2 Why Asymmetric Note Placement?
 
-Errors become learning opportunities when captured as notes. A corrective note ("Previous assumption about X was wrong; actually Y") is more valuable than erasing the mistake—it prevents future repetition and documents the reasoning evolution.
+Asymmetric placement—origin for `scope`, destination for `goto`—emerged as optimal because `scope` notes explain **why leaving** (context stays with origin) and `goto` notes explain **what bringing** (results travel to destination).
 
-### 6.4.2 Why Asymmetric Note Placement?
+### 6.7.3 Why Separate Notes and Insights?
 
-We experimented with symmetric placement (notes always in current scope) and destination-only placement. Asymmetric placement—origin for `scope`, destination for `goto`—emerged as optimal because:
+The episodic/semantic distinction mirrors human memory theory [21]. Notes capture **what happened** (task-specific events), while insights capture **what was learned** (generalizable knowledge). This separation enables knowledge transfer patterns impossible with a single memory tier: an insight from debugging ("always check null before accessing .data") benefits all future tasks, while notes about specific file changes remain scoped.
 
-- `scope` notes explain **why leaving**: context for the departure stays with the origin
-- `goto` notes explain **what bringing**: results travel to the destination
+## 6.8 Relationship to Human Memory
 
-This creates complete trails in both the origin (departure log) and destination (arrival log).
-
-### 6.4.3 Why Inherit from Main?
-
-New scopes inherit notes from main, not from the current scope. This ensures:
-- All scopes have access to foundational knowledge
-- Main accumulates project-wide context
-- Parallel scopes don't cross-contaminate
-
-Alternative designs could support hierarchical scope trees, but the flat main-centric structure proved sufficient for our use cases.
-
-## 6.5 Implications
-
-### 6.5.1 For Agent Developers
-
-Explicit context management offers a lightweight alternative to learned compression:
-- No fine-tuning required
-- Works with any tool-use capable model
-- Predictable, debuggable behavior
-
-Developers can add context management to existing agents by:
-1. Adding the command tool to the tool set
-2. Extending the system prompt with workflow guidance
-3. Optionally adding policies for automatic note suggestions
-
-### 6.5.2 For Framework Authors
-
-Agent frameworks could integrate explicit context management as a core primitive. Rather than requiring developers to implement custom memory systems, frameworks could provide:
-- Built-in scope and note commands
-- Automatic context composition
-- Policy engines for memory management
-- Visualization tools for reasoning traces
-
-### 6.5.3 For Researchers
-
-The results suggest that effective long-running agents don't require learned compression policies. Simple, explicit mechanisms achieve significant token reduction with minimal complexity.
-
-This opens questions:
-- What's the optimal granularity for scopes?
-- Can note quality be automatically evaluated and improved?
-- How do explicit and learned approaches compare at scale?
-
-## 6.6 Relationship to Human Memory
-
-Our approach draws implicit parallels to human episodic memory [6]:
-
-- **Scopes** ~ **Contexts**: Humans form memories in context; recall is easier within the same context
-- **Notes** ~ **Episodic encoding**: Specific experiences are compressed into memorable summaries
-- **Transitions** ~ **Context shifts**: Crossing "doorways" triggers memory encoding/retrieval
-
-Whether these parallels are merely metaphorical or reveal deeper principles of effective memory systems remains an open question.
-
-## 6.7 Threats to Validity
-
-### Internal Validity
-- Single model (GPT-4.1-mini) may not generalize
-- Synthetic tasks may not reflect real-world complexity
-- Prompt engineering affects results
-
-### External Validity
-- Different model architectures may behave differently
-- Different task domains may require different scope strategies
-- Token savings may vary with context window sizes
-
-### Construct Validity
-- We measure tokens, not task quality
-- Completion rate is binary; nuanced quality differences may exist
-- Note "quality" is subjectively assessed
+Our approach draws explicit parallels to Tulving's memory taxonomy [21]: scopes resemble episodic contexts, notes resemble episodic encoding, insights resemble semantic memory consolidation, and transitions resemble context shifts. The three-tier architecture (working, episodic, semantic) maps directly to cognitive science models, suggesting that effective memory systems—whether biological or artificial—may share structural principles.

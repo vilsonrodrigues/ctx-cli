@@ -1,6 +1,8 @@
 # 2. Related Work
 
-The challenge of maintaining coherent long-term behavior in language model agents has catalyzed a rich body of research spanning cognitive architectures, memory systems, and context management techniques. Recent literature distinguishes between **Semantic Memory**—the storage of general facts and world knowledge—and **Episodic Memory**—the recall of specific past events and their contexts [5, 10]. In LLM agents, semantic memory is often implemented via Retrieval-Augmented Generation (RAG) using vector databases [1, 3]. However, pure RAG approaches often struggle with "Context Drift" where irrelevant episodic history pollutes the reasoning space. ECM addresses this by providing a deliberate interface for the agent to transition between these memory tiers.
+The challenge of maintaining coherent long-term behavior in language model agents has catalyzed a rich body of research spanning cognitive architectures, memory systems, and context management techniques. Recent literature distinguishes between **Semantic Memory**—the storage of general facts and world knowledge—and **Episodic Memory**—the recall of specific past events and their contexts [5, 10]. In LLM agents, semantic memory is often implemented via Retrieval-Augmented Generation (RAG) using vector databases. However, pure RAG approaches often struggle with "Context Drift" where irrelevant episodic history pollutes the reasoning space.
+
+This section surveys the landscape of memory and context management for LLM agents, positioning ECM relative to cognitive architectures (§2.1), episodic memory systems (§2.3-2.4), virtual context management (§2.5), agentic memory (§2.6), learned compression (§2.7), and domain-specific challenges (§2.8).
 
 ## 2.1 Cognitive Architectures for Language Agents
 
@@ -61,9 +63,50 @@ These systems represent the state-of-the-art in *implicit* management—the syst
 
 ## 2.7 Context Compression and Folding
 
-A parallel research thread addresses context limits through **compression**.
+A parallel research thread addresses context limits through **learned compression**—training models to autonomously decide when and how to compress their context.
 
-**Context-Folding** [2] and **AgentFold** [1] use reinforcement learning or fine-tuning to teach models when to "fold" (compress) their context. **HiAgent** [3] decomposes tasks into subgoals with associated context chunks.
+### 2.7.1 Context-Folding
+
+**Context-Folding** [2] introduces an agentic mechanism where models actively manage their working context through two operations: `branch(description, prompt)` creates a temporary sub-trajectory for a localized subtask, and `return(message)` rejoins the main thread while "folding" away intermediate steps. The key innovation is **FoldGRPO**, a reinforcement learning algorithm with dense, token-level process rewards including an "Unfolded Token Penalty" (discouraging token-heavy operations in the main context) and an "Out-of-Scope Penalty" (maintaining focus within sub-tasks).
+
+Context-Folding achieves 62.0% on BrowseComp-Plus and 58.0% on SWE-Bench Verified using only a 32K token budget—surpassing ReAct baselines requiring 327K contexts. However, the approach implements **stack-based navigation**: branches must return in LIFO (Last-In-First-Out) order, limiting exploration patterns to strictly hierarchical decomposition.
+
+### 2.7.2 AgentFold
+
+**AgentFold** [1] extends folding with two complementary operations at different scales. **Micro-folding** (granular condensation) targets single steps, converting verbose interactions into compact summaries. **Macro-folding** (deep consolidation) fuses multiple prior summaries into coarser abstractions, enabling the system to "retract entire verbose sequences and replace them with a single, conclusive summary."
+
+AgentFold frames context as "a dynamic cognitive workspace to be actively sculpted, rather than a passive log to be filled." Using supervised fine-tuning on trajectory data from a Fold-Generator pipeline, AgentFold-30B achieves 36.2% on BrowseComp—outperforming DeepSeek-V3.1-671B (30.0%) and OpenAI's o4-mini (28.3%)—while maintaining only ~7K tokens after 100 interaction turns.
+
+### 2.7.3 Context as a Tool (CaT)
+
+**CaT** [28] formalizes a structured context workspace with three components: stable task semantics $Q$, condensed long-term memory $M(t)$, and high-fidelity short-term interactions $I^{(k)}(t)$. The agent proactively triggers compression at strategic milestones identified by three signals: context expansion (sustained growth), structural boundaries (subtask completion), and error-correction moments.
+
+Using **CaT-Generator**, an offline pipeline that injects context-management actions into complete interaction trajectories, the authors train **SWE-Compressor** (Qwen2.5-Coder 32B) achieving 57.6% on SWE-Bench-Verified while maintaining bounded context. CaT demonstrates that context management can be elevated from "a passive heuristic to a callable and plannable capability."
+
+### 2.7.4 Comparative Analysis
+
+Table 2 contrasts these learned compression approaches with ECM:
+
+| Dimension | Context-Folding | AgentFold | CaT | **ECM (Ours)** |
+|-----------|-----------------|-----------|-----|----------------|
+| Training Required | RL (FoldGRPO) | SFT | SFT (20K samples) | **None** |
+| Navigation Structure | Stack (branch/return) | Linear | Linear | **Graph (scope/goto)** |
+| Compression Timing | Learned | Learned | Learned (3 signals) | **Explicit (transitions)** |
+| Semantic Memory | No | No | No | **Yes (insights)** |
+| Memory Persistence | Session-only | Session-only | Session-only | **Cross-session** |
+| Model-Agnostic | No | No | No | **Yes** |
+
+Three fundamental differences distinguish ECM from learned compression:
+
+**Stack vs. Graph Navigation.** Context-Folding's `branch/return` enforces LIFO ordering—an agent exploring alternatives A and B must complete B before returning to A. ECM's `scope/goto` implements **graph-based navigation**: an agent can freely move between `research/A`, `research/B`, and `main`, enabling non-linear exploration essential for comparing alternatives.
+
+**Learned vs. Explicit Compression.** Folding approaches learn *when* to compress through training signals. ECM makes compression **explicit and deliberate**: the agent declares what matters at scope transitions through mandatory notes. This prospective approach captures the agent's current understanding rather than retrospectively summarizing what a compression model deems important.
+
+**Ephemeral vs. Persistent Memory.** When Context-Folding executes `return(message)`, intermediate steps are destroyed—only the summary survives. ECM's notes remain **permanently accessible** via `notes [scope]`, enabling retrospective analysis and cross-task knowledge transfer. Furthermore, ECM's `insights` provide a semantic memory tier absent in all folding approaches.
+
+### 2.7.5 Other Compression Approaches
+
+**HiAgent** [3] decomposes tasks into subgoals with associated context chunks, achieving 35% context reduction without training. **ACON** [29] provides a universal agent context optimization framework supporting both history and observation compression, reducing memory usage by 26-54% while preserving task success. These approaches focus on compression mechanics rather than the navigation and memory structures that ECM provides.
 
 ## 2.8 Challenges in Long-Running Coding Agents
 
@@ -73,22 +116,51 @@ State-of-the-art agents like **SWE-agent** [25] and **OpenDevin** [26] employ sp
 
 **AutoCodeRover** [27] attempts to solve this via program analysis (AST parsing) to retrieve only relevant code slices. While effective for *code* retrieval, it does not solve the *reasoning* continuity problem. ECM addresses this gap: by isolating the "Debug" scope, an agent can generate massive test logs, extract the relevant error into a note, and return to the "Edit" scope with a clean context and a clear objective, preventing the test output from polluting the reasoning history.
 
-Table 1 summarizes these approaches:
+Table 1 summarizes the landscape of context management approaches:
 
-| Approach | Mechanism | Training Required | Context Reduction |
-|----------|-----------|-------------------|-------------------|
-| MemoryBank [22] | Ebbinghaus Decay | No | Variable |
-| MemGPT [13] | Virtual paging | No | Unbounded (external) |
-| Context-Folding [2] | RL-learned branch/collapse | RL training | 10× |
-| HiAgent [3] | Subgoal chunking | No | 35% |
-| **ECM (Ours)** | **Scope Isolation** | **No** | **88%** |
+| Approach | Mechanism | Training | Reduction | Navigation | Persistent Memory |
+|----------|-----------|----------|-----------|------------|-------------------|
+| MemoryBank [22] | Ebbinghaus Decay | No | Variable | Linear | External |
+| MemGPT [13] | Virtual paging | No | Unbounded | Linear | External DB |
+| Context-Folding [2] | branch/return + RL | RL | 10× | Stack | No |
+| AgentFold [1] | micro/macro-fold | SFT | ~7K@100t | Linear | No |
+| CaT [28] | Learned compression | SFT | 70% | Linear | No |
+| HiAgent [3] | Subgoal chunking | No | 35% | Hierarchical | No |
+| ACON [29] | History+Obs compression | No | 26-54% | Linear | No |
+| **ECM (Ours)** | **Scope Isolation** | **No** | **88%** | **Graph** | **Yes** |
 
 ## 2.9 Positioning Our Contribution
 
-Our work occupies a distinct position in this landscape. We share MemGPT's goal of bounded context but achieve it without external storage. We share the "Reflection" concept of Generative Agents but apply it to workflow control.
+ECM occupies a unique position in the design space of context management systems, distinguished by three orthogonal dimensions:
 
-The key differentiator is **prospective vs. retrospective memory management**.
-- **Retrospective (RAG/Mem0):** "Look back at what I did and find what's important."
-- **Prospective (ECM):** "I am changing context now, so I will define what is important to carry forward."
+### Training Requirements
 
-This prospective approach leverages the agent's current understanding of its goals to create high-quality episodic markers (notes) *in the moment*, avoiding the loss of nuance that occurs when summarizing raw logs after the fact.
+The recent wave of learned compression approaches—Context-Folding [2], AgentFold [1], and CaT [28]—achieve impressive results but require either reinforcement learning or supervised fine-tuning on thousands of trajectories. ECM demonstrates that **comparable context reduction (88%) is achievable with zero training**, making it immediately deployable with any tool-use capable model. This training-free property is shared only with MemGPT [13] and HiAgent [3], but ECM achieves superior reduction without external infrastructure.
+
+### Navigation Topology
+
+Context-Folding's `branch/return` implements stack-based (LIFO) navigation—branches must complete before returning to parent contexts. AgentFold and CaT maintain linear context with periodic compression. ECM uniquely provides **graph-based navigation** through `scope/goto`, enabling non-linear exploration where an agent can freely traverse between any existing scopes. This topology mirrors how developers use Git branches: creating `research/approach-A` and `research/approach-B`, exploring each independently, and comparing findings without one polluting the other.
+
+### Memory Semantics
+
+All compression approaches—whether learned (Context-Folding, AgentFold, CaT) or heuristic (HiAgent, ACON)—focus exclusively on **episodic compression**: summarizing what happened. ECM introduces a **two-tier memory system**:
+- **Episodic (notes)**: Scope-local records of specific events, preserved across transitions
+- **Semantic (insights)**: Global knowledge transcending individual scopes
+
+This distinction enables knowledge transfer patterns impossible with pure compression: an insight discovered in `fix/auth-bug` ("all endpoints require @authenticated decorator") becomes immediately available in `feature/new-endpoint` without explicit retrieval.
+
+### Prospective vs. Retrospective
+
+The fundamental philosophical difference is **when** memory curation occurs:
+- **Retrospective (RAG/Mem0/Folding):** "After the fact, determine what was important."
+- **Prospective (ECM):** "At the moment of transition, declare what matters going forward."
+
+This prospective approach leverages the agent's current understanding of its goals to create high-quality episodic markers *in the moment*, avoiding the information loss inherent in retrospective summarization. When an agent executes `goto main -m "Found root cause: missing null check in parser.py:142"`, it captures precisely the insight that motivated the transition—context that a compression model operating on raw logs might not preserve.
+
+### Design Tradeoffs
+
+ECM's simplicity comes with explicit tradeoffs. Learned approaches can potentially achieve better compression ratios by identifying subtle redundancies humans might miss. Stack-based navigation (Context-Folding) enforces structured decomposition that may prevent certain errors. ECM accepts these tradeoffs in exchange for:
+1. **Zero training overhead**: Deploy immediately with any model
+2. **Interpretable state**: All memory is human-readable and auditable
+3. **Flexible navigation**: Support exploration patterns beyond hierarchical decomposition
+4. **Persistent knowledge**: Notes and insights survive beyond individual sessions

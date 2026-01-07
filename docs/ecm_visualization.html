@@ -1,288 +1,280 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ECM Visualization</title>
+    <title>ECM Git-Style Visualization</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         :root {
-            --bg-dark: #0d1117;
-            --bg-card: #161b22;
+            --bg: #0d1117;
+            --card: #161b22;
             --border: #30363d;
             --text: #c9d1d9;
-            --text-muted: #8b949e;
-            --accent-blue: #58a6ff;
-            --accent-green: #3fb950;
-            --accent-purple: #a371f7;
-            --accent-orange: #f0883e;
-            --accent-red: #f85149;
+            --muted: #8b949e;
+            --main: #3fb950;
+            --scope: #58a6ff;
+            --note: #f0883e;
+            --insight: #a371f7;
+            --archived: #6e7681;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-            background: var(--bg-dark);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
             color: var(--text);
             min-height: 100vh;
             padding: 2rem;
         }
-        
+
         h1 {
             text-align: center;
-            margin-bottom: 1rem;
-            color: var(--accent-blue);
+            margin-bottom: 0.5rem;
+            color: var(--scope);
         }
-        
+
         .subtitle {
             text-align: center;
-            color: var(--text-muted);
+            color: var(--muted);
             margin-bottom: 2rem;
         }
-        
+
         .controls {
             display: flex;
             justify-content: center;
             gap: 0.5rem;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             flex-wrap: wrap;
         }
-        
+
         .step-btn {
             padding: 0.5rem 1rem;
             border: 1px solid var(--border);
-            background: var(--bg-card);
+            background: var(--card);
             color: var(--text);
             border-radius: 6px;
             cursor: pointer;
             font-size: 0.85rem;
             transition: all 0.2s;
         }
-        
+
         .step-btn:hover {
-            border-color: var(--accent-blue);
-            background: rgba(88, 166, 255, 0.1);
+            border-color: var(--scope);
         }
-        
+
         .step-btn.active {
-            border-color: var(--accent-blue);
-            background: var(--accent-blue);
+            background: var(--scope);
             color: #000;
+            border-color: var(--scope);
         }
-        
-        .command-display {
-            text-align: center;
-            margin-bottom: 2rem;
+
+        .command-box {
+            max-width: 800px;
+            margin: 0 auto 2rem;
             padding: 1rem;
-            background: rgba(0, 0, 0, 0.3);
+            background: var(--card);
+            border: 1px solid var(--border);
             border-radius: 8px;
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            font-family: 'SF Mono', Monaco, monospace;
+            text-align: center;
         }
-        
-        .command-display code {
-            font-size: 1.1rem;
-            color: var(--accent-green);
+
+        .command-box code {
+            color: var(--main);
         }
-        
-        .visualization {
-            display: flex;
-            gap: 2rem;
-            max-width: 1200px;
+
+        .graph-container {
+            max-width: 900px;
             margin: 0 auto;
-        }
-        
-        .memory-column {
-            flex: 1;
-        }
-        
-        .memory-section {
-            background: var(--bg-card);
+            padding: 2rem;
+            background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
         }
-        
-        .memory-section h3 {
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-            margin-bottom: 1rem;
+
+        .graph-row {
             display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            align-items: flex-start;
+            min-height: 60px;
+            position: relative;
         }
-        
-        .memory-section h3 .icon {
-            font-size: 1rem;
-        }
-        
-        .semantic-memory {
-            border-color: var(--accent-purple);
-        }
-        
-        .semantic-memory h3 {
-            color: var(--accent-purple);
-        }
-        
-        .project-section {
-            margin-bottom: 1.5rem;
-        }
-        
-        .project-header {
+
+        .graph-lanes {
             display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid var(--border);
+            width: 120px;
+            flex-shrink: 0;
+            position: relative;
         }
-        
-        .project-badge {
-            padding: 0.25rem 0.5rem;
+
+        .lane {
+            width: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .lane-line {
+            width: 3px;
+            background: var(--border);
+            position: absolute;
+            top: 0;
+            bottom: 0;
+        }
+
+        .lane-line.main {
+            background: var(--main);
+        }
+
+        .lane-line.scope {
+            background: var(--scope);
+        }
+
+        .lane-line.archived {
+            background: var(--archived);
+            opacity: 0.5;
+        }
+
+        .node {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--border);
+            border: 3px solid var(--bg);
+            position: relative;
+            z-index: 10;
+            margin-top: 20px;
+        }
+
+        .node.main {
+            background: var(--main);
+        }
+
+        .node.scope {
+            background: var(--scope);
+        }
+
+        .node.note {
+            background: var(--note);
+        }
+
+        .node.insight {
+            background: var(--insight);
+        }
+
+        .node.archived {
+            background: var(--archived);
+        }
+
+        .node.active {
+            box-shadow: 0 0 0 4px rgba(63, 185, 80, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 4px rgba(63, 185, 80, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 0 8px rgba(63, 185, 80, 0);
+            }
+        }
+
+        .branch-line {
+            position: absolute;
+            height: 3px;
+            background: var(--scope);
+            top: 28px;
+        }
+
+        .branch-line.to-right {
+            left: 20px;
+            width: 40px;
+            border-radius: 0 0 8px 0;
+        }
+
+        .branch-line.to-left {
+            left: -20px;
+            width: 40px;
+            border-radius: 0 0 0 8px;
+        }
+
+        .merge-curve {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--scope);
+            border-top: none;
+            border-left: none;
+            border-radius: 0 0 12px 0;
+            top: 8px;
+            left: 20px;
+        }
+
+        .commit-content {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            margin-left: 1rem;
+        }
+
+        .commit-message {
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .commit-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        .commit-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
             border-radius: 4px;
             font-size: 0.75rem;
             font-weight: 600;
+            margin-right: 0.5rem;
         }
-        
-        .project-badge.current {
-            background: var(--accent-green);
+
+        .badge-scope {
+            background: var(--scope);
             color: #000;
         }
-        
-        .project-badge.previous {
-            background: var(--text-muted);
+
+        .badge-note {
+            background: var(--note);
             color: #000;
         }
-        
-        .scope {
-            background: rgba(0, 0, 0, 0.3);
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 0.75rem;
-            transition: all 0.3s ease;
+
+        .badge-insight {
+            background: var(--insight);
+            color: #000;
         }
-        
-        .scope.active {
-            border-color: var(--accent-green);
-            box-shadow: 0 0 20px rgba(63, 185, 80, 0.2);
+
+        .badge-goto {
+            background: var(--main);
+            color: #000;
         }
-        
-        .scope.archived {
-            opacity: 0.6;
-            border-style: dashed;
+
+        .badge-project {
+            background: #f85149;
+            color: #000;
         }
-        
-        .scope-header {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.5rem;
+
+        .hidden {
+            display: none;
         }
-        
-        .scope-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--border);
-        }
-        
-        .scope-indicator.active {
-            background: var(--accent-green);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.4); }
-            50% { box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); }
-        }
-        
-        .scope-name {
-            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
-            font-weight: 600;
-            color: var(--accent-blue);
-        }
-        
-        .scope-stats {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-left: auto;
-        }
-        
-        .notes-container {
-            margin-top: 0.75rem;
-        }
-        
-        .note {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            padding: 0.5rem;
-            background: rgba(88, 166, 255, 0.1);
-            border-left: 3px solid var(--accent-blue);
-            border-radius: 0 4px 4px 0;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
-            animation: slideIn 0.3s ease;
-        }
-        
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateX(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        
-        .note-icon {
-            color: var(--accent-blue);
-        }
-        
-        .insight {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            padding: 0.75rem;
-            background: rgba(163, 113, 247, 0.1);
-            border-left: 3px solid var(--accent-purple);
-            border-radius: 0 4px 4px 0;
-            margin-bottom: 0.5rem;
-            font-size: 0.85rem;
-        }
-        
-        .insight-icon {
-            color: var(--accent-purple);
-        }
-        
-        .empty-state {
-            color: var(--text-muted);
-            font-style: italic;
-            font-size: 0.85rem;
-            padding: 0.5rem;
-        }
-        
-        .arrow {
-            text-align: center;
-            color: var(--accent-orange);
-            font-size: 1.5rem;
-            margin: 0.5rem 0;
-            animation: bounce 1s infinite;
-        }
-        
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(5px); }
-        }
-        
+
         .legend {
             display: flex;
             justify-content: center;
@@ -290,44 +282,70 @@
             margin-top: 2rem;
             flex-wrap: wrap;
         }
-        
+
         .legend-item {
             display: flex;
             align-items: center;
             gap: 0.5rem;
             font-size: 0.85rem;
-            color: var(--text-muted);
+            color: var(--muted);
         }
-        
+
         .legend-dot {
             width: 12px;
             height: 12px;
             border-radius: 50%;
         }
-        
-        .legend-dot.green { background: var(--accent-green); }
-        .legend-dot.blue { background: var(--accent-blue); }
-        .legend-dot.purple { background: var(--accent-purple); }
-        .legend-dot.gray { background: var(--text-muted); }
-        
-        .hidden {
-            display: none !important;
+
+        .project-separator {
+            border-top: 2px dashed var(--border);
+            margin: 1rem 0;
+            padding-top: 1rem;
         }
-        
-        .fade-in {
-            animation: fadeIn 0.5s ease;
+
+        .project-label {
+            font-size: 0.75rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
         }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+
+        .semantic-section {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .semantic-section h3 {
+            font-size: 0.85rem;
+            color: var(--insight);
+            margin-bottom: 1rem;
+        }
+
+        .insight-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            background: rgba(163, 113, 247, 0.1);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .insight-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--insight);
         }
     </style>
 </head>
+
 <body>
-    <h1>⚡ ECM Visualization</h1>
-    <p class="subtitle">Explicit Context Management - Visual State Transitions</p>
-    
+    <h1>⚡ ECM Git Graph</h1>
+    <p class="subtitle">Visualização estilo Git do Explicit Context Management</p>
+
     <div class="controls">
         <button class="step-btn active" data-step="1">1. Initial</button>
         <button class="step-btn" data-step="2">2. scope</button>
@@ -335,268 +353,423 @@
         <button class="step-btn" data-step="4">4. insight</button>
         <button class="step-btn" data-step="5">5. goto main</button>
         <button class="step-btn" data-step="6">6. new_project()</button>
-        <button class="step-btn" data-step="7">7. notes</button>
     </div>
-    
-    <div class="command-display">
-        <code id="current-command">Initial state - no commands executed</code>
+
+    <div class="command-box">
+        <code id="current-command">$ ctx_cli status</code>
     </div>
-    
-    <div class="visualization">
-        <div class="memory-column">
-            <!-- Semantic Memory -->
-            <div class="memory-section semantic-memory">
-                <h3><span class="icon">◇</span> Semantic Memory (Global)</h3>
-                <div id="semantic-content">
-                    <p class="empty-state">No insights yet</p>
-                </div>
-            </div>
-            
-            <!-- Episodic Memory -->
-            <div class="memory-section">
-                <h3><span class="icon">□</span> Episodic Memory (Per Scope)</h3>
-                
-                <!-- Current Project -->
-                <div class="project-section" id="current-project">
-                    <div class="project-header">
-                        <span class="project-badge current">CURRENT</span>
-                        <span id="current-project-name">default</span>
-                    </div>
-                    
-                    <div id="current-scopes">
-                        <div class="scope active" id="main-scope">
-                            <div class="scope-header">
-                                <div class="scope-indicator active"></div>
-                                <span class="scope-name">main</span>
-                                <span class="scope-stats">0 notes</span>
-                            </div>
-                        </div>
+
+    <div class="graph-container">
+        <div class="project-label">Project: <span id="project-name">default</span></div>
+
+        <div id="graph-content">
+            <!-- Step 1: Initial -->
+            <div class="graph-row" id="row-init">
+                <div class="graph-lanes">
+                    <div class="lane">
+                        <div class="lane-line main" style="top: 28px;"></div>
+                        <div class="node main active"></div>
                     </div>
                 </div>
-                
-                <!-- Previous Project (hidden initially) -->
-                <div class="project-section hidden" id="previous-project">
-                    <div class="project-header">
-                        <span class="project-badge previous">PREVIOUS</span>
-                        <span id="previous-project-name">default</span>
-                    </div>
-                    
-                    <div id="previous-scopes"></div>
+                <div class="commit-content">
+                    <div class="commit-message">Initial state</div>
+                    <div class="commit-meta">main (HEAD)</div>
                 </div>
             </div>
         </div>
+
+        <div class="semantic-section hidden" id="semantic-section">
+            <h3>◇ Semantic Memory (Global)</h3>
+            <div id="insights-list"></div>
+        </div>
     </div>
-    
+
     <div class="legend">
         <div class="legend-item">
-            <div class="legend-dot green"></div>
-            <span>Active Scope (HEAD)</span>
+            <div class="legend-dot" style="background: var(--main);"></div>
+            <span>main</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot blue"></div>
-            <span>Note (Episodic)</span>
+            <div class="legend-dot" style="background: var(--scope);"></div>
+            <span>scope</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot purple"></div>
-            <span>Insight (Semantic)</span>
+            <div class="legend-dot" style="background: var(--note);"></div>
+            <span>note</span>
         </div>
         <div class="legend-item">
-            <div class="legend-dot gray"></div>
-            <span>Archived Scope</span>
+            <div class="legend-dot" style="background: var(--insight);"></div>
+            <span>insight</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: var(--archived);"></div>
+            <span>archived</span>
         </div>
     </div>
-    
+
     <script>
+        const graphContent = document.getElementById('graph-content');
+        const semanticSection = document.getElementById('semantic-section');
+        const insightsList = document.getElementById('insights-list');
+        const projectName = document.getElementById('project-name');
+
         const steps = {
             1: {
-                command: 'Initial state - no commands executed',
-                action: () => {
-                    resetState();
+                command: '$ ctx_cli status',
+                render: () => {
+                    projectName.textContent = 'default';
+                    semanticSection.classList.add('hidden');
+                    insightsList.innerHTML = '';
+                    graphContent.innerHTML = `
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main" style="top: 28px;"></div>
+                                    <div class="node main active"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">Initial state</div>
+                                <div class="commit-meta">main (HEAD)</div>
+                            </div>
+                        </div>
+                    `;
                 }
             },
             2: {
-                command: 'scope user-model -m "Building User model"',
-                action: () => {
-                    resetState();
-                    // Deactivate main
-                    const mainScope = document.getElementById('main-scope');
-                    mainScope.classList.remove('active');
-                    mainScope.querySelector('.scope-indicator').classList.remove('active');
-                    
-                    // Add user-model scope
-                    const scopesDiv = document.getElementById('current-scopes');
-                    scopesDiv.innerHTML += `
-                        <div class="arrow">↓</div>
-                        <div class="scope active fade-in" id="user-model-scope">
-                            <div class="scope-header">
-                                <div class="scope-indicator active"></div>
-                                <span class="scope-name">user-model</span>
-                                <span class="scope-stats">0 notes</span>
+                command: '$ ctx_cli scope user-model -m "Building User model"',
+                render: () => {
+                    projectName.textContent = 'default';
+                    semanticSection.classList.add('hidden');
+                    graphContent.innerHTML = `
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                    <div class="node main"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">Initial state</div>
+                                <div class="commit-meta">main</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane" style="position: relative;">
+                                    <div class="lane-line scope" style="top: 28px;"></div>
+                                    <div class="node scope active"></div>
+                                    <div class="merge-curve" style="left: -20px; border-right: none; border-left: 3px solid var(--scope); border-radius: 0 0 0 12px;"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-scope">SCOPE</span>
+                                    Building User model
+                                </div>
+                                <div class="commit-meta">user-model (HEAD)</div>
                             </div>
                         </div>
                     `;
                 }
             },
             3: {
-                command: 'note -m "Created User dataclass with validation"',
-                action: () => {
-                    steps[2].action();
-                    setTimeout(() => {
-                        const userScope = document.getElementById('user-model-scope');
-                        userScope.innerHTML += `
-                            <div class="notes-container">
-                                <div class="note fade-in">
-                                    <span class="note-icon">□</span>
-                                    <span>Created User dataclass with validation</span>
+                command: '$ ctx_cli note -m "Created User dataclass with validation"',
+                render: () => {
+                    projectName.textContent = 'default';
+                    semanticSection.classList.add('hidden');
+                    graphContent.innerHTML = `
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                    <div class="node main"></div>
                                 </div>
                             </div>
-                        `;
-                        userScope.querySelector('.scope-stats').textContent = '1 note';
-                    }, 100);
+                            <div class="commit-content">
+                                <div class="commit-message">Initial state</div>
+                                <div class="commit-meta">main</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane" style="position: relative;">
+                                    <div class="lane-line scope"></div>
+                                    <div class="node scope"></div>
+                                    <div class="merge-curve" style="left: -20px; border-right: none; border-left: 3px solid var(--scope); border-radius: 0 0 0 12px;"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-scope">SCOPE</span>
+                                    Building User model
+                                </div>
+                                <div class="commit-meta">user-model</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane">
+                                    <div class="lane-line scope" style="top: 28px;"></div>
+                                    <div class="node note active"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-note">NOTE</span>
+                                    Created User dataclass with validation
+                                </div>
+                                <div class="commit-meta">user-model (HEAD) • 1 note</div>
+                            </div>
+                        </div>
+                    `;
                 }
             },
             4: {
-                command: 'insight -m "Pattern: dataclass with validate_X methods"',
-                action: () => {
-                    steps[3].action();
-                    setTimeout(() => {
-                        document.getElementById('semantic-content').innerHTML = `
-                            <div class="insight fade-in">
-                                <span class="insight-icon">◇</span>
-                                <span>Pattern: dataclass with validate_X methods</span>
+                command: '$ ctx_cli insight -m "Pattern: dataclass with validate_X methods"',
+                render: () => {
+                    projectName.textContent = 'default';
+                    semanticSection.classList.remove('hidden');
+                    insightsList.innerHTML = `
+                        <div class="insight-item">
+                            <div class="insight-dot"></div>
+                            <span>Pattern: dataclass with validate_X methods</span>
+                        </div>
+                    `;
+                    graphContent.innerHTML = `
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                    <div class="node main"></div>
+                                </div>
                             </div>
-                        `;
-                    }, 200);
+                            <div class="commit-content">
+                                <div class="commit-message">Initial state</div>
+                                <div class="commit-meta">main</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane" style="position: relative;">
+                                    <div class="lane-line scope"></div>
+                                    <div class="node scope"></div>
+                                    <div class="merge-curve" style="left: -20px; border-right: none; border-left: 3px solid var(--scope); border-radius: 0 0 0 12px;"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-scope">SCOPE</span>
+                                    Building User model
+                                </div>
+                                <div class="commit-meta">user-model</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane">
+                                    <div class="lane-line scope"></div>
+                                    <div class="node note"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-note">NOTE</span>
+                                    Created User dataclass with validation
+                                </div>
+                                <div class="commit-meta">user-model • 1 note</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane">
+                                    <div class="lane-line scope" style="top: 28px;"></div>
+                                    <div class="node insight active"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-insight">INSIGHT</span>
+                                    Pattern: dataclass with validate_X methods
+                                </div>
+                                <div class="commit-meta">user-model (HEAD) • GLOBAL</div>
+                            </div>
+                        </div>
+                    `;
                 }
             },
             5: {
-                command: 'goto main -m "User model complete"',
-                action: () => {
-                    steps[4].action();
-                    setTimeout(() => {
-                        // Deactivate user-model
-                        const userScope = document.getElementById('user-model-scope');
-                        userScope.classList.remove('active');
-                        userScope.querySelector('.scope-indicator').classList.remove('active');
-                        
-                        // Activate main with note
-                        const mainScope = document.getElementById('main-scope');
-                        mainScope.classList.add('active');
-                        mainScope.querySelector('.scope-indicator').classList.add('active');
-                        mainScope.innerHTML = `
-                            <div class="scope-header">
-                                <div class="scope-indicator active"></div>
-                                <span class="scope-name">main</span>
-                                <span class="scope-stats">1 note</span>
-                            </div>
-                            <div class="notes-container">
-                                <div class="note fade-in">
-                                    <span class="note-icon">□</span>
-                                    <span>[From user-model] User model complete</span>
+                command: '$ ctx_cli goto main -m "User model complete"',
+                render: () => {
+                    projectName.textContent = 'default';
+                    semanticSection.classList.remove('hidden');
+                    graphContent.innerHTML = `
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                    <div class="node main"></div>
                                 </div>
                             </div>
-                        `;
-                    }, 200);
+                            <div class="commit-content">
+                                <div class="commit-message">Initial state</div>
+                                <div class="commit-meta">main</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane" style="position: relative;">
+                                    <div class="lane-line scope"></div>
+                                    <div class="node scope"></div>
+                                    <div class="merge-curve" style="left: -20px; border-right: none; border-left: 3px solid var(--scope); border-radius: 0 0 0 12px;"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-scope">SCOPE</span>
+                                    Building User model
+                                </div>
+                                <div class="commit-meta">user-model</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane">
+                                    <div class="lane-line scope"></div>
+                                    <div class="node note"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-note">NOTE</span>
+                                    Created User dataclass
+                                </div>
+                                <div class="commit-meta">user-model</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main"></div>
+                                </div>
+                                <div class="lane">
+                                    <div class="lane-line scope" style="bottom: 28px;"></div>
+                                    <div class="node insight"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-insight">INSIGHT</span>
+                                    Pattern: dataclass with validate_X
+                                </div>
+                                <div class="commit-meta">user-model • GLOBAL</div>
+                            </div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane" style="position: relative;">
+                                    <div class="lane-line main" style="top: 28px;"></div>
+                                    <div class="node main active"></div>
+                                    <div class="merge-curve" style="left: 20px; top: 8px;"></div>
+                                </div>
+                                <div class="lane">
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-goto">GOTO</span>
+                                    User model complete
+                                </div>
+                                <div class="commit-meta">main (HEAD) • merged from user-model</div>
+                            </div>
+                        </div>
+                    `;
                 }
             },
             6: {
-                command: 'new_project("ecommerce-api") # Developer API',
-                action: () => {
-                    steps[5].action();
-                    setTimeout(() => {
-                        // Move scopes to previous project
-                        document.getElementById('previous-project').classList.remove('hidden');
-                        document.getElementById('previous-project-name').textContent = 'default';
+                command: '$ store.new_project("ecommerce-api")  # Developer API',
+                render: () => {
+                    projectName.textContent = 'ecommerce-api';
+                    semanticSection.classList.remove('hidden');
+                    graphContent.innerHTML = `
+                        <div class="project-separator">
+                            <div class="project-label" style="color: var(--archived);">Archived: default</div>
+                        </div>
+                        <div class="graph-row" style="opacity: 0.5;">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line archived"></div>
+                                    <div class="node archived"></div>
+                                </div>
+                                <div class="lane">
+                                    <div class="lane-line archived"></div>
+                                    <div class="node archived"></div>
+                                </div>
+                            </div>
+                            <div class="commit-content">
+                                <div class="commit-message">main@default, user-model@default</div>
+                                <div class="commit-meta">Accessible via: notes user-model@default</div>
+                            </div>
+                        </div>
                         
-                        document.getElementById('previous-scopes').innerHTML = `
-                            <div class="scope archived fade-in">
-                                <div class="scope-header">
-                                    <div class="scope-indicator"></div>
-                                    <span class="scope-name">main@default</span>
-                                    <span class="scope-stats">1 note</span>
-                                </div>
-                                <div class="notes-container">
-                                    <div class="note">
-                                        <span class="note-icon">□</span>
-                                        <span>[From user-model] User model complete</span>
-                                    </div>
+                        <div class="project-separator">
+                            <div class="project-label" style="color: var(--main);">Current: ecommerce-api</div>
+                        </div>
+                        <div class="graph-row">
+                            <div class="graph-lanes">
+                                <div class="lane">
+                                    <div class="lane-line main" style="top: 28px;"></div>
+                                    <div class="node main active"></div>
                                 </div>
                             </div>
-                            <div class="scope archived fade-in">
-                                <div class="scope-header">
-                                    <div class="scope-indicator"></div>
-                                    <span class="scope-name">user-model@default</span>
-                                    <span class="scope-stats">1 note</span>
+                            <div class="commit-content">
+                                <div class="commit-message">
+                                    <span class="commit-badge badge-project">NEW PROJECT</span>
+                                    Fresh main scope
                                 </div>
-                                <div class="notes-container">
-                                    <div class="note">
-                                        <span class="note-icon">□</span>
-                                        <span>Created User dataclass with validation</span>
-                                    </div>
-                                </div>
+                                <div class="commit-meta">main (HEAD) • 0 notes, 0 messages</div>
                             </div>
-                        `;
-                        
-                        // Fresh current project
-                        document.getElementById('current-project-name').textContent = 'ecommerce-api';
-                        document.getElementById('current-scopes').innerHTML = `
-                            <div class="scope active fade-in" id="main-scope">
-                                <div class="scope-header">
-                                    <div class="scope-indicator active"></div>
-                                    <span class="scope-name">main</span>
-                                    <span class="scope-stats">0 notes</span>
-                                </div>
-                            </div>
-                        `;
-                    }, 200);
-                }
-            },
-            7: {
-                command: 'notes user-model@default # Recall from previous project',
-                action: () => {
-                    steps[6].action();
-                    setTimeout(() => {
-                        // Highlight the previous scope being accessed
-                        const prevScopes = document.querySelectorAll('#previous-scopes .scope');
-                        prevScopes[1].style.borderColor = 'var(--accent-orange)';
-                        prevScopes[1].style.boxShadow = '0 0 20px rgba(240, 136, 62, 0.3)';
-                    }, 300);
+                        </div>
+                    `;
                 }
             }
         };
-        
-        function resetState() {
-            document.getElementById('semantic-content').innerHTML = '<p class="empty-state">No insights yet</p>';
-            document.getElementById('current-project-name').textContent = 'default';
-            document.getElementById('current-scopes').innerHTML = `
-                <div class="scope active" id="main-scope">
-                    <div class="scope-header">
-                        <div class="scope-indicator active"></div>
-                        <span class="scope-name">main</span>
-                        <span class="scope-stats">0 notes</span>
-                    </div>
-                </div>
-            `;
-            document.getElementById('previous-project').classList.add('hidden');
-            document.getElementById('previous-scopes').innerHTML = '';
-        }
-        
+
         document.querySelectorAll('.step-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                // Update active button
                 document.querySelectorAll('.step-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                
-                // Get step
+
                 const step = parseInt(btn.dataset.step);
-                
-                // Update command display
                 document.getElementById('current-command').textContent = steps[step].command;
-                
-                // Execute step action
-                steps[step].action();
+                steps[step].render();
             });
         });
     </script>
 </body>
+
 </html>

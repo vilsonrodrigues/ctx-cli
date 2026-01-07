@@ -38,7 +38,7 @@ The research community has proposed diverse solutions to context limitations, ea
 
 **Virtual context management** systems like MemGPT [13] draw analogies to operating system memory hierarchies. By "paging" information between main context (RAM) and external storage (disk), these systems provide unbounded effective context. However, they require external infrastructure and introduce retrieval latency and coherence challenges.
 
-**Learned compression** approaches train models to compress context intelligently. Context-Folding [2] uses reinforcement learning to learn when to branch and collapse context, achieving 10× reduction. AgentFold [1] fine-tunes models to perform micro- and macro-folding operations. While effective, these approaches require significant training overhead.
+**Learned compression** approaches train models to compress context intelligently. Context-Folding [2] uses reinforcement learning to learn when to branch and collapse context, achieving 10× reduction. AgentFold [1] fine-tunes models to perform micro- and macro-folding operations. CaT [28] trains a dedicated SWE-Compressor model on 20,000 trajectories to learn when and how to compress. While effective, these approaches require significant training overhead and produce models that are not transferable across domains.
 
 **Agentic memory** systems like Mem0 [16] and A-MEM [17] actively manage memory through extraction, linking, and consolidation. These systems achieve impressive results but require sophisticated infrastructure including vector databases and graph stores.
 
@@ -50,36 +50,41 @@ We propose a fundamentally different approach: give agents **explicit control** 
 
 Our insight is that conversation context can be treated as **versioned state**, analogous to version control systems for code. Just as developers create branches to isolate work and commits to checkpoint progress, agents can create scopes to isolate reasoning and notes to preserve learnings.
 
-This leads to a minimal interface of four commands:
+This leads to a minimal interface organized around three operations: **navigation** (scope, goto), **persistence** (note, insight), and **inspection** (notes, insights, status, scopes).
 
-| Command | Semantics |
-|---------|-----------|
-| `scope <name> -m "..."` | Create isolated reasoning context |
-| `goto <name> -m "..."` | Navigate between contexts |
-| `note -m "..."` | Preserve episodic memory |
-| `scopes` / `notes` | Inspect state |
+| Command | Semantics | Memory Tier |
+|---------|-----------|-------------|
+| `scope <name> -m "..."` | Create and enter new context | Working |
+| `goto <name> -m "..."` | Navigate to existing context | Working |
+| `note -m "..."` | Record scope-local event | Episodic |
+| `insight -m "..."` | Record global knowledge | Semantic |
+| `notes` / `insights` | Retrieve memories | — |
+| `status` / `scopes` | Inspect current state | Meta |
 
-The key mechanism is **scope isolation**. Messages are partitioned into scopes, and only messages from the current scope are visible to the model during API calls. Notes provide compressed episodic memory that persists within scopes, enabling knowledge retention without unbounded context growth.
+The key mechanism is **scope isolation**. Messages are partitioned into scopes, and only messages from the current scope are visible to the model during API calls. Scopes form a **graph structure** where the agent can navigate freely via `goto`—unlike stack-based approaches (Context-Folding) that enforce LIFO ordering.
 
-This design creates a two-tier memory system without external infrastructure:
-- **Working memory**: Messages in the current scope (ephemeral).
-- **Episodic memory**: Notes in the current scope (persistent).
+This design creates a **three-tier memory system** without external infrastructure:
+- **Working memory**: Messages in the current scope (ephemeral, cleared on scope change).
+- **Episodic memory**: Notes local to each scope (persistent, queryable via `notes`).
+- **Semantic memory**: Insights global across all scopes (persistent, queryable via `insights`).
 
 ## 1.5 Contributions
 
 This paper makes the following contributions:
 
-1. **A minimal command interface for explicit context management.** We demonstrate that four commands suffice for effective context control, requiring no model modifications or external infrastructure.
+1. **A minimal, training-free command interface for explicit context management.** We demonstrate that a small set of commands (navigation, persistence, inspection) suffices for effective context control, requiring no model fine-tuning, reinforcement learning, or external infrastructure—unlike Context-Folding [2], AgentFold [1], and CaT [28].
 
-2. **Application-Layer Context Partitioning.** We formalize a mechanism where message visibility is determined by scope membership, implementing bounded context through message filtering rather than architectural changes.
+2. **Graph-based scope navigation.** Unlike stack-based approaches (Context-Folding's `branch/return`) that enforce LIFO ordering, ECM's `scope/goto` implements graph-based navigation where agents can freely traverse between any existing scopes. This enables non-linear exploration patterns essential for comparing alternatives.
 
-3. **Asymmetric Note Placement Semantics.** We introduce a novel transition protocol where "departure notes" stay in the origin scope and "arrival notes" go to the destination scope. This preserves the causal narrative of the agent's journey across disjoint memory spaces.
+3. **Three-tier memory architecture.** We introduce a memory system differentiating working memory (ephemeral messages), episodic memory (scope-local notes), and semantic memory (global insights). The semantic tier enables knowledge transfer patterns impossible with pure compression approaches.
 
-4. **Empirical validation of token economics.** We demonstrate **88% reduction in peak context** (12,059 → 1,402 tokens) and **34% faster execution** on sequential coding tasks from SWE-Bench-CL [20], while identifying that isolated tasks favor linear approaches.
+4. **Asymmetric note placement semantics.** We introduce a novel transition protocol where "departure notes" stay in the origin scope and "arrival notes" go to the destination scope. This preserves the causal narrative of the agent's journey across disjoint memory spaces.
 
-5. **An open-source implementation** that integrates with any tool-use capable model and includes robust handling of API-specific constraints (such as tool call consistency).
+5. **Empirical validation of token economics.** We demonstrate **88% reduction in peak context** (12,059 → 1,402 tokens) and **34% faster execution** on sequential coding tasks from SWE-Bench-CL [30], comparable to learned approaches but without training overhead.
 
-Our approach occupies a distinct position in the design space: simpler than learned compression, more flexible than hierarchical decomposition, and more transparent than agentic memory systems. The tradeoff is explicit dependence on agent compliance—the model must correctly use the commands. We view this as acceptable for applications where interpretability and simplicity are valued alongside performance.
+6. **An open-source, model-agnostic implementation** that integrates with any tool-use capable model (GPT-4, Claude, Gemini, open-source) and includes robust handling of API-specific constraints.
+
+Our approach occupies a distinct position in the design space: simpler than learned compression, more flexible than stack-based decomposition, and more transparent than agentic memory systems. The tradeoff is explicit dependence on agent compliance—the model must correctly use the commands. We view this as acceptable for applications where interpretability, portability, and simplicity are valued alongside performance.
 
 ## 1.6 Paper Organization
 

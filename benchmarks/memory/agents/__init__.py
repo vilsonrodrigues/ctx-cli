@@ -423,6 +423,9 @@ Only save what's genuinely useful. The tool helps you maintain memory across int
         # Use provided system prompt or fall back to default
         base_prompt = system_prompt if system_prompt else self.SYSTEM_PROMPT
         system = base_prompt + "\n\n" + self._get_memory_summary()
+
+        # ECM design: Context accumulates WITHIN a scope
+        # The scope IS the working context - cleanup happens via `goto main`
         messages = self.store.get_context(system)
         messages.append({"role": "user", "content": question})
 
@@ -451,7 +454,8 @@ Only save what's genuinely useful. The tool helps you maintain memory across int
         if message.tool_calls:
             tool_calls_captured = self._process_tool_calls(message.tool_calls)
 
-        # Add response to store
+        # Add response to current scope's context
+        # ECM: Messages accumulate within scope, cleanup via `goto main`
         from ctx_store import Message
         self.store.add_message(Message(role="assistant", content=message.content or ""))
 
