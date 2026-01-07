@@ -453,6 +453,9 @@ class ContextStore:
         # Check if trying to create an already existing scope
         scope_already_exists = scope_name in self.branches
 
+        if scope_already_exists and self.branches[scope_name].finalized:
+             return f"ERROR: Scope '{scope_name}' is finalized and cannot be reopened. Create a new scope instead.", None
+
 
         if not scope_already_exists:
             if create:
@@ -538,9 +541,6 @@ class ContextStore:
         
         # Differentiate message based on whether user tried to create an existing scope
         if create and scope_already_exists:
-            # Check if scope is finalized
-            if self.branches[scope_name].finalized:
-                return f"ERROR: Scope '{scope_name}' is finalized and cannot be reopened. Create a new scope instead.", None
             return f"Scope '{scope_name}' already exists. Switched to it. Current scope: {scope_name}", event
         return f"Switched to scope '{scope_name}'. Current scope: {scope_name}", event
 
