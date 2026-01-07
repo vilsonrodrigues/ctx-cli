@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
-from prompts4 import SYSTEM_PROMPT_ECM
+from prompts import SYSTEM_PROMPT_ECM
 
 # Use the standard ECM prompt from prompts.py
 SYSTEM_PROMPT = SYSTEM_PROMPT_ECM
