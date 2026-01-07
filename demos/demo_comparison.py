@@ -46,6 +46,8 @@ def run_linear_approach(client: OpenAI, tracker: TokenTracker) -> dict:
 
     messages = [{"role": "system", "content": "You are a software architect designing a system."}]
     token_history = []
+    working_history = []  # Track working context (messages only, no system)
+    peak_working = 0
     start_time = time.time()
 
     for i, step in enumerate(TASK_STEPS, 1):
@@ -53,9 +55,15 @@ def run_linear_approach(client: OpenAI, tracker: TokenTracker) -> dict:
 
         messages.append({"role": "user", "content": step})
 
-        # Track tokens before API call
+        # Track total tokens (with system prompt)
         tokens = tracker.count_messages(messages)
         token_history.append(tokens)
+
+        # Track working context (messages only, excluding system prompt)
+        working_messages = [m for m in messages if m.get("role") != "system"]
+        working_tokens = tracker.count_messages(working_messages)
+        working_history.append(working_tokens)
+        peak_working = max(peak_working, working_tokens)
 
         response = client.chat.completions.create(
             model="gpt-4.1-mini",
@@ -69,11 +77,18 @@ def run_linear_approach(client: OpenAI, tracker: TokenTracker) -> dict:
 
     elapsed = time.time() - start_time
 
+    # Capture final working context
+    working_messages = [m for m in messages if m.get("role") != "system"]
+    final_working = tracker.count_messages(working_messages)
+
     return {
         "approach": "linear",
         "final_tokens": token_history[-1] if token_history else 0,
         "max_tokens": max(token_history) if token_history else 0,
         "token_history": token_history,
+        "working_history": working_history,
+        "peak_working": peak_working,
+        "final_working": final_working,
         "message_count": len(messages),
         "elapsed_time": elapsed,
     }
@@ -89,18 +104,26 @@ def run_scope_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     store = ContextStore()
     tools = [CTX_CLI_TOOL]
     token_history = []
+    working_history = []  # Track working context (messages only, no system)
+    peak_working = 0
     notes_made = 0
     start_time = time.time()
 
     system_prompt = "You are a software architect designing a system.\n\n" + SYSTEM_PROMPT_ECM
 
-    def chat(user_message: str) -> int:
-        nonlocal notes_made
+    def chat(user_message: str) -> tuple[int, int]:
+        """Returns (total_tokens, working_tokens)"""
+        nonlocal notes_made, peak_working
         store.add_message(Message(role="user", content=user_message))
 
         for _ in range(5):  # Max tool call rounds
             context = store.get_context(system_prompt)
             tokens = tracker.count_messages(context)
+
+            # Track working context (messages only, excluding system prompt)
+            working_messages = [m for m in context if m.get("role") != "system"]
+            working_tokens = tracker.count_messages(working_messages)
+            peak_working = max(peak_working, working_tokens)
 
             response = client.chat.completions.create(
                 model="gpt-4.1-mini",
@@ -133,23 +156,32 @@ def run_scope_approach(client: OpenAI, tracker: TokenTracker) -> dict:
                     role="assistant",
                     content=message.content or "",
                 ))
-                return tokens
+                return tokens, working_tokens
 
-        return tokens
+        return tokens, working_tokens
 
     for i, step in enumerate(TASK_STEPS, 1):
         print(f"Step {i}: {step[:50]}...")
-        tokens = chat(step)
+        tokens, working_tokens = chat(step)
         token_history.append(tokens)
+        working_history.append(working_tokens)
         print(f"  → Tokens: {tokens}, Notes: {notes_made}")
 
     elapsed = time.time() - start_time
+
+    # Capture final working context
+    context = store.get_context(system_prompt)
+    working_messages = [m for m in context if m.get("role") != "system"]
+    final_working = tracker.count_messages(working_messages)
 
     return {
         "approach": "scope",
         "final_tokens": token_history[-1] if token_history else 0,
         "max_tokens": max(token_history) if token_history else 0,
         "token_history": token_history,
+        "working_history": working_history,
+        "peak_working": peak_working,
+        "final_working": final_working,
         "message_count": sum(len(b.messages) for b in store.branches.values()),
         "notes_made": notes_made,
         "scopes": len(store.branches),
@@ -184,20 +216,35 @@ def run_comparison():
     print("COMPARISON RESULTS")
     print("=" * 70)
 
-    print("\n📊 Token Usage:")
-    print(f"  {'Metric':<25} {'Linear':>12} {'Scope':>12} {'Savings':>12}")
-    print(f"  {'-' * 25} {'-' * 12} {'-' * 12} {'-' * 12}")
+    print("\n📊 Key Metric: Peak Working Context (fair comparison)")
+    print("=" * 70)
+    linear_peak_working = linear_results["peak_working"]
+    scope_peak_working = scope_results["peak_working"]
+    peak_savings = linear_peak_working - scope_peak_working
+    peak_pct = (peak_savings / linear_peak_working * 100) if linear_peak_working > 0 else 0
 
+    print(f"  Linear:   {linear_peak_working:>6,} tokens (messages only)")
+    print(f"  ECM:      {scope_peak_working:>6,} tokens (messages only)")
+    print(f"  Savings:  {peak_savings:>6,} tokens ({peak_pct:>5.1f}% reduction) {'✅' if peak_savings > 0 else '❌'}")
+
+    print("\n📋 Final Working Context (at completion)")
+    print("=" * 70)
+    linear_final_working = linear_results["final_working"]
+    scope_final_working = scope_results["final_working"]
+    final_savings = linear_final_working - scope_final_working
+    final_pct = (final_savings / linear_final_working * 100) if linear_final_working > 0 else 0
+
+    print(f"  Linear:   {linear_final_working:>6,} tokens")
+    print(f"  ECM:      {scope_final_working:>6,} tokens")
+    print(f"  Savings:  {final_savings:>6,} tokens ({final_pct:>5.1f}% reduction) {'✅' if final_savings > 0 else '❌'}")
+
+    print("\n📈 Peak Total Context (includes system prompt)")
+    print("=" * 70)
     linear_max = linear_results["max_tokens"]
     scope_max = scope_results["max_tokens"]
-    savings_max = ((linear_max - scope_max) / linear_max * 100) if linear_max > 0 else 0
 
-    linear_final = linear_results["final_tokens"]
-    scope_final = scope_results["final_tokens"]
-    savings_final = ((linear_final - scope_final) / linear_final * 100) if linear_final > 0 else 0
-
-    print(f"  {'Max tokens':.<25} {linear_max:>12,} {scope_max:>12,} {savings_max:>11.1f}%")
-    print(f"  {'Final tokens':.<25} {linear_final:>12,} {scope_final:>12,} {savings_final:>11.1f}%")
+    print(f"  Linear:   {linear_max:>6,} tokens")
+    print(f"  ECM:      {scope_max:>6,} tokens")
 
     print("\n📈 Token Growth Curve:")
     print(f"  Step   │ {'Linear':>10} │ {'Scope':>10} │ Difference")
@@ -217,12 +264,19 @@ def run_comparison():
     print("\n⏱️  Execution Time:")
     print(f"  Linear: {linear_results['elapsed_time']:.1f}s")
     print(f"  Scope: {scope_results['elapsed_time']:.1f}s")
+    time_saved = linear_results['elapsed_time'] - scope_results['elapsed_time']
+    if time_saved > 0:
+        time_pct = (time_saved / linear_results['elapsed_time'] * 100)
+        print(f"  Savings: {time_saved:.1f}s ({time_pct:.1f}% faster)")
 
     print("\n💡 Key Insights:")
-    if savings_final > 0:
-        print(f"  ✓ Scope approach saved {savings_final:.1f}% tokens at completion")
+    if peak_pct > 0:
+        print(f"  ✓ ECM reduced peak working context by {peak_pct:.1f}%")
     else:
-        print(f"  → Scope approach used {-savings_final:.1f}% more tokens (overhead from tool calls)")
+        print(f"  → ECM used {-peak_pct:.1f}% more peak context (overhead from system prompt)")
+
+    if final_pct > 0:
+        print(f"  ✓ ECM reduced final working context by {final_pct:.1f}%")
 
     if scope_results.get("notes_made", 0) > 0:
         print(f"  ✓ {scope_results['notes_made']} notes preserved reasoning as episodic memory")
@@ -231,7 +285,7 @@ def run_comparison():
 
     print("\n📝 Summary:")
     print("  Linear: Simple but context grows unbounded")
-    print("  Scope: Overhead from tools, but flattens growth curve")
+    print("  ECM: Discards working memory via scope/return, maintains sustainable context")
     print("  Best for: Long tasks where context would exceed limits")
 
 

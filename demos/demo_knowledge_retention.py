@@ -146,10 +146,13 @@ def run_task(
     store: ContextStore | None = None,
 ) -> tuple[dict, ContextStore | None]:
     """Run a single task."""
+    import time
     client = OpenAI()
     tracker = TokenTracker(model="gpt-4.1-mini")
     base_input = 0  # system + tools + user (cacheable by providers)
     peak_input = 0  # maximum context window size
+    peak_working = 0  # peak working context (messages only, no system)
+    start_time = time.time()
 
     if store:
         store.add_message(Message(role="user", content=task))
@@ -172,6 +175,11 @@ def run_task(
 
         input_tokens = tracker.update_context(messages)
         tracker.add_input(input_tokens)
+
+        # Track working context (messages only, excluding system prompt)
+        working_messages = [m for m in messages if m.get("role") != "system"]
+        working_tokens = tracker.count_messages(working_messages)
+        peak_working = max(peak_working, working_tokens)
 
         # First call = base (system + tools + user) - cacheable
         if iteration == 1:
@@ -256,6 +264,16 @@ def run_task(
             print(f"\n  Completed in {iteration} iterations")
             break
 
+    elapsed = time.time() - start_time
+
+    # Capture final working context
+    if store:
+        final_messages = store.get_context(system_prompt)
+    else:
+        final_messages = messages
+    working_messages = [m for m in final_messages if m.get("role") != "system"]
+    final_working = tracker.count_messages(working_messages)
+
     stats = tracker.get_stats()
     growth = peak_input - base_input  # Context growth beyond base
     return {
@@ -263,8 +281,11 @@ def run_task(
         "iterations": iteration,
         "base_input": base_input,      # system + tools + user (cacheable)
         "peak_input": peak_input,      # maximum context size
+        "peak_working": peak_working,  # peak working context (fair metric)
+        "final_working": final_working, # final working context
         "growth": growth,              # how much context grew
         "total_output": stats["total_output"],
+        "elapsed_time": elapsed,
     }, store
 
 
@@ -344,37 +365,50 @@ def run_comparison():
     # Calculate totals
     linear_total_output = linear_a['total_output'] + linear_b['total_output']
     scope_total_output = branch_a['total_output'] + branch_b['total_output']
+    linear_total_time = linear_a['elapsed_time'] + linear_b['elapsed_time']
+    scope_total_time = branch_a['elapsed_time'] + branch_b['elapsed_time']
 
     print(f"\n{'Metric':<35} {'LINEAR':>12} {'SCOPE':>12}")
     print("-"*60)
 
     # Project A
     print(f"\n{'PROJECT A':<35}")
-    print(f"{'  Base (system+tools+user)':<35} {linear_a['base_input']:>12,} {branch_a['base_input']:>12,}")
-    print(f"{'  Peak Input':<35} {linear_a['peak_input']:>12,} {branch_a['peak_input']:>12,}")
-    print(f"{'  Context Growth':<35} {linear_a['growth']:>12,} {branch_a['growth']:>12,}")
-    print(f"{'  Output':<35} {linear_a['total_output']:>12,} {branch_a['total_output']:>12,}")
+    print(f"{'  Peak Working (fair)':<35} {linear_a['peak_working']:>12,} {branch_a['peak_working']:>12,}")
+    print(f"{'  Final Working':<35} {linear_a['final_working']:>12,} {branch_a['final_working']:>12,}")
+    print(f"{'  Peak Total (w/ system)':<35} {linear_a['peak_input']:>12,} {branch_a['peak_input']:>12,}")
+    print(f"{'  Output Tokens':<35} {linear_a['total_output']:>12,} {branch_a['total_output']:>12,}")
     print(f"{'  Iterations':<35} {linear_a['iterations']:>12} {branch_a['iterations']:>12}")
+    print(f"{'  Latency':<35} {linear_a['elapsed_time']:>11.1f}s {branch_a['elapsed_time']:>11.1f}s")
 
     # Project B
     print(f"\n{'PROJECT B':<35}")
-    print(f"{'  Base (system+tools+user)':<35} {linear_b['base_input']:>12,} {branch_b['base_input']:>12,}")
-    print(f"{'  Peak Input':<35} {linear_b['peak_input']:>12,} {branch_b['peak_input']:>12,}")
-    print(f"{'  Context Growth':<35} {linear_b['growth']:>12,} {branch_b['growth']:>12,}")
-    print(f"{'  Output':<35} {linear_b['total_output']:>12,} {branch_b['total_output']:>12,}")
+    print(f"{'  Peak Working (fair)':<35} {linear_b['peak_working']:>12,} {branch_b['peak_working']:>12,}")
+    print(f"{'  Final Working':<35} {linear_b['final_working']:>12,} {branch_b['final_working']:>12,}")
+    print(f"{'  Peak Total (w/ system)':<35} {linear_b['peak_input']:>12,} {branch_b['peak_input']:>12,}")
+    print(f"{'  Output Tokens':<35} {linear_b['total_output']:>12,} {branch_b['total_output']:>12,}")
     print(f"{'  Iterations':<35} {linear_b['iterations']:>12} {branch_b['iterations']:>12}")
+    print(f"{'  Latency':<35} {linear_b['elapsed_time']:>11.1f}s {branch_b['elapsed_time']:>11.1f}s")
 
     # Summary
     print(f"\n{'SUMMARY':<35}")
-    print(f"{'  Total Base (cacheable)':<35} {linear_a['base_input']+linear_b['base_input']:>12,} {branch_a['base_input']+branch_b['base_input']:>12,}")
-    print(f"{'  Total Growth':<35} {linear_a['growth']+linear_b['growth']:>12,} {branch_a['growth']+branch_b['growth']:>12,}")
+    linear_max_peak_working = max(linear_a['peak_working'], linear_b['peak_working'])
+    scope_max_peak_working = max(branch_a['peak_working'], branch_b['peak_working'])
+    working_savings = linear_max_peak_working - scope_max_peak_working
+    working_pct = (working_savings / linear_max_peak_working * 100) if linear_max_peak_working > 0 else 0
+
+    print(f"{'  Max Peak Working':<35} {linear_max_peak_working:>12,} {scope_max_peak_working:>12,}")
+    if working_savings > 0:
+        print(f"{'  Working Context Savings':<35} {working_savings:>12,} ({working_pct:>5.1f}% reduction)")
     print(f"{'  Total Output':<35} {linear_total_output:>12,} {scope_total_output:>12,}")
-    print(f"{'  Max Peak':<35} {max(linear_a['peak_input'], linear_b['peak_input']):>12,} {max(branch_a['peak_input'], branch_b['peak_input']):>12,}")
+    print(f"{'  Total Latency':<35} {linear_total_time:>11.1f}s {scope_total_time:>11.1f}s")
 
     print("\n" + "="*70)
-    print("KEY OBSERVATION:")
-    print("Project B in SCOPE approach accesses notes from Project A before")
-    print("starting work. Look for 'MEMORY ACCESS' in the output above.")
+    print("KEY OBSERVATIONS:")
+    print("1. Peak Working Context = fair comparison (messages only, no system)")
+    print("2. Project B in SCOPE approach accesses notes from Project A before")
+    print("   starting work. Look for 'MEMORY ACCESS' in the output above.")
+    if working_savings > 0:
+        print(f"3. ECM saved {working_pct:.1f}% of peak working context across projects")
     print("="*70)
 
 

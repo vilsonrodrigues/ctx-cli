@@ -91,17 +91,18 @@ def run_quick_test():
     print("QUICK ECM TEST")
     print("=" * 70)
 
-    # Test 1: Simple scope workflow
+    # Test 1: Simpler scope workflow
     chat("""
-    Task: Analyze approach A for solving problem X.
+    Task: Create a user authentication design.
 
-    Please:
-    1. Create a scope for requirements
-    2. Take notes on requirements
-    3. Return to main
-    4. Create a scope for approach A
-    5. Analyze it using the requirements notes
-    """, label="TEST: Scope workflow with notes")
+    Workflow:
+    1. Create scope 'auth/design'
+    2. Call status to see context
+    3. Take a note about the approach
+    4. Return to main
+
+    Keep it simple and concise.
+    """, label="TEST: Basic scope workflow")
 
     # Analyze command sequence
     print("\n" + "=" * 70)
