@@ -267,6 +267,7 @@ def run_approach(
     store = ContextStore() if use_ctx else None
     peak_input = 0
     peak_working = 0  # Track working context size (without system prompt)
+    final_working = 0  # Track final context size when task completes
 
     # Initial user message with first step
     if store:
@@ -412,6 +413,10 @@ def run_approach(
 
     stats = tracker.get_stats()
 
+    # Capture final working context size
+    working_messages = [m for m in messages if m.get("role") != "system"]
+    final_working = tracker.count_messages(working_messages)
+
     # Count ECM usage if store was used
     ecm_stats = {}
     if store:
@@ -429,6 +434,7 @@ def run_approach(
         "total_output_tokens": stats["total_output"],
         "peak_input_tokens": peak_input,
         "peak_working_tokens": peak_working,
+        "final_working_tokens": final_working,
         "ecm_stats": ecm_stats,
     }
 
@@ -468,11 +474,24 @@ def run_comparison(num_steps: int = 6):
     working_savings = linear_result["peak_working_tokens"] - branch_result["peak_working_tokens"]
     working_pct = (working_savings / linear_result["peak_working_tokens"] * 100) if linear_result["peak_working_tokens"] > 0 else 0
 
-    print(f"\n📊 Key Metric: Peak Working Context (fair comparison)")
+    # Calculate final working savings
+    final_savings = linear_result["final_working_tokens"] - branch_result["final_working_tokens"]
+    final_pct = (final_savings / linear_result["final_working_tokens"] * 100) if linear_result["final_working_tokens"] > 0 else 0
+
+    print(f"\n📊 Key Metrics: Working Context (fair comparison)")
     print(f"{'='*70}")
-    print(f"  Linear:  {linear_result['peak_working_tokens']:>6,} tokens (messages only)")
-    print(f"  ECM:     {branch_result['peak_working_tokens']:>6,} tokens (messages only)")
-    print(f"  Savings: {working_savings:>6,} tokens ({working_pct:>5.1f}% reduction) {'✅' if working_savings > 0 else '⚠️'}")
+    print(f"{'Metric':<25} {'Linear':>12} {'ECM':>12} {'Savings':>15}")
+    print(f"{'-'*70}")
+    print(f"{'Peak during task':<25} {linear_result['peak_working_tokens']:>12,} {branch_result['peak_working_tokens']:>12,} {working_savings:>9,} ({working_pct:>4.1f}%)")
+    print(f"{'Final at completion':<25} {linear_result['final_working_tokens']:>12,} {branch_result['final_working_tokens']:>12,} {final_savings:>9,} ({final_pct:>4.1f}%)")
+    print(f"{'='*70}")
+
+    if working_savings > 0 and final_savings > 0:
+        print(f"{'✅ ECM kept context controlled throughout task!'}")
+    elif working_savings > 0:
+        print(f"⚠️  Peak was lower but final accumulated")
+    else:
+        print(f"⚠️  ECM had overhead for this short task")
 
     print(f"\n📋 Peak Total Context (includes system prompt)")
     print(f"{'='*70}")
@@ -496,15 +515,18 @@ def run_comparison(num_steps: int = 6):
         print(f"  Notes saved:    {ecm['notes_created']}")
         print(f"  Insights saved: {ecm['insights_created']}")
 
-    print(f"\n💡 Key Insight:")
+    print(f"\n💡 Key Insights:")
     print(f"{'='*70}")
-    if working_savings > 0:
-        print(f"  ECM reduced working context by {working_pct:.1f}%!")
-        print(f"  This allows longer tasks without hitting context limits.")
-        print(f"  Model uses scope/return to discard working memory.")
+    if working_savings > 0 and final_savings > 0:
+        print(f"  ✅ Peak reduced by {working_pct:.1f}% - prevents context overflow")
+        print(f"  ✅ Final reduced by {final_pct:.1f}% - sustainable for longer tasks")
+        print(f"  ✅ Model uses scope/return to continuously discard working memory")
+    elif working_savings > 0:
+        print(f"  ⚠️  Peak was controlled but final context accumulated")
+        print(f"  → Model may need more aggressive return usage")
     else:
-        print(f"  For this short task, ECM had overhead without clear benefit.")
-        print(f"  ECM shines on longer tasks with 6+ interdependent steps.")
+        print(f"  ⚠️  For this short task, ECM had overhead without clear benefit")
+        print(f"  → ECM shines on longer tasks with 6+ interdependent steps")
     print("=" * 70)
 
     return linear_result, branch_result
