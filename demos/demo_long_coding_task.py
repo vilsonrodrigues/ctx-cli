@@ -22,8 +22,9 @@ from openai import OpenAI
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ctx_cli import CTX_CLI_TOOL, PLAN_TOOL, execute_command, execute_plan
+from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
+from prompts import SYSTEM_PROMPT_ECM
 from tokens import TokenTracker
 
 # =============================================================================
@@ -123,10 +124,7 @@ def execute_tool(tool_name: str, args: dict, workdir: str) -> str:
                 return "\n".join(os.listdir(path)) or "(empty)"
             return f"Error: Not found: {args.get('path', '.')}"
 
-        elif tool_name == "plan":
-            return execute_plan(args.get("content", ""))
 
-        return f"Unknown tool: {tool_name}"
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -248,31 +246,7 @@ Instructions:
 - Create proper project structure with directories
 - Complete each step thoroughly"""
 
-SYSTEM_PROMPT_BRANCH = '''You are a software developer.
-
-Tools: bash, read_file, write_file, list_files, ctx_cli
-
-# WORKFLOW (follow exactly)
-
-When you receive a step:
-
-1. FIRST: ctx_cli scope step-N -m "what I'll do"
-2. THEN: read files, write code
-3. THEN: ctx_cli note -m "files: X, patterns: Y, decisions: Z"
-4. LAST: ctx_cli goto main -m "done: summary"
-
-# COMMANDS
-
-scope <name> -m "..."   Start isolated work. Note saves HERE before leaving.
-note -m "..."           Record what you learned. Be detailed.
-goto main -m "..."      Return with results. Note saves in main.
-
-# RULES
-
-- ALWAYS start with scope. No reading/writing before scope.
-- Files on DISK, scopes in MEMORY. Switching scope does NOT affect files.
-- Write detailed notes: they are your memory.
-'''
+SYSTEM_PROMPT_BRANCH = "You are a software developer.\n\nTools: bash, read_file, write_file, list_files, ctx_cli\n\n" + SYSTEM_PROMPT_ECM
 
 
 # =============================================================================
@@ -331,67 +305,74 @@ def run_approach(
         if response.usage:
             tracker.add_output(response.usage.completion_tokens)
 
-        # Store assistant message
-        if store:
-            store.add_message(Message(
-                role="assistant",
-                content=msg.content or "",
-                tool_calls=[{
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {"name": tc.function.name, "arguments": tc.function.arguments}
-                } for tc in (msg.tool_calls or [])]
-            ))
-        else:
-            messages.append({
-                "role": "assistant",
-                "content": msg.content,
-                "tool_calls": [
-                    {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                    for tc in (msg.tool_calls or [])
-                ] if msg.tool_calls else None
-            })
-
         # Handle tool calls
         step_completed = False
         if msg.tool_calls:
-            for tc in msg.tool_calls:
-                name = tc.function.name
-                args = json.loads(tc.function.arguments)
+            # Check if this is a context operation turn
+            is_ctx_turn = any(tc.function.name == "ctx_cli" for tc in msg.tool_calls)
 
-                # Execute tool
-                if name == "ctx_cli" and store:
-                    cmd = args.get("command", "")
-                    result, _ = execute_command(store, cmd)
-                    # Detect step completion: goto main signals step is done
-                    if cmd.startswith("goto main"):
-                        step_completed = True
-                elif name == "plan":
-                    result = "Plan recorded. Now proceed with: ctx_cli scope <name> -m <note>"
-                else:
-                    result = execute_tool(name, args, workdir)
-
-                print(f"  [{name}] {str(args)[:50]}... -> {result[:50]}...")
-
-                # Store tool result
+            if is_ctx_turn and store:
+                # Delegate entirely to store harness to handle scope transitions
+                for tc in msg.tool_calls:
+                    if tc.function.name == "ctx_cli":
+                        args = json.loads(tc.function.arguments)
+                        cmd = args.get("command", "")
+                        store.execute_tool_call(tc.id, cmd, msg.content or "")
+                        
+                        if cmd.startswith("return"):
+                            step_completed = True
+            else:
+                # Standard tool execution
                 if store:
-                    store.add_message(Message(
-                        role="tool",
-                        content=result,
-                        tool_call_id=tc.id,
+                     store.add_message(Message(
+                        role="assistant",
+                        content=msg.content or "",
+                        tool_calls=[{
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+                        } for tc in (msg.tool_calls or [])]
                     ))
                 else:
                     messages.append({
-                        "role": "tool",
-                        "content": result,
-                        "tool_call_id": tc.id,
+                        "role": "assistant",
+                        "content": msg.content,
+                        "tool_calls": [
+                            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                            for tc in (msg.tool_calls or [])
+                        ] if msg.tool_calls else None
                     })
+
+                for tc in msg.tool_calls:
+                    name = tc.function.name
+                    args = json.loads(tc.function.arguments)
+
+                    if name == "ctx_cli" and store:
+                         # Fallback if mixed (shouldn't happen with logic above but safe)
+                         pass
+                    else:
+                        result = execute_tool(name, args, workdir)
+
+                    print(f"  [{name}] {str(args)[:50]}... -> {result[:50]}...")
+
+                    if store:
+                        store.add_message(Message(
+                            role="tool",
+                            content=result,
+                            tool_call_id=tc.id,
+                        ))
+                    else:
+                        messages.append({
+                            "role": "tool",
+                            "content": result,
+                            "tool_call_id": tc.id,
+                        })
 
             # Refresh context if using store
             if store:
                 messages = store.get_context(system_prompt)
 
-            # If step was completed via goto main, advance to next step
+            # If step was completed via return, advance to next step
             if step_completed:
                 step_idx += 1
                 if step_idx < len(steps):

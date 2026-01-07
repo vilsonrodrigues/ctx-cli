@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
+from prompts import SYSTEM_PROMPT_ECM
 from tokens import TokenTracker
 
 # Same task for both approaches
@@ -91,17 +92,7 @@ def run_scope_approach(client: OpenAI, tracker: TokenTracker) -> dict:
     notes_made = 0
     start_time = time.time()
 
-    system_prompt = """You are a software architect designing a system.
-
-You have ctx_cli for context management. USE IT ACTIVELY:
-- Save notes after each major design decision
-- Keep notes concise but informative
-- This preserves your reasoning while keeping context lean
-
-Key commands:
-- scope name -m "starting this area" - Create scope for new area
-- note -m "description" - Save your current reasoning
-- goto main -m "summary" - Return with findings"""
+    system_prompt = "You are a software architect designing a system.\n\n" + SYSTEM_PROMPT_ECM
 
     def chat(user_message: str) -> int:
         nonlocal notes_made

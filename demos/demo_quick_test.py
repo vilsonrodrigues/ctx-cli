@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ctx_cli import CTX_CLI_TOOL
 from ctx_store import ContextStore, Message
-from prompts_v2 import SYSTEM_PROMPT_ECM
+from prompts import SYSTEM_PROMPT_ECM
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_ECM
 

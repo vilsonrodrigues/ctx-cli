@@ -32,7 +32,7 @@ the system will auto-save based on policies when needed.
 Just focus on the task at hand. If you want to manually save important
 milestones, you can, but it's not required.
 
-Available commands: scope, goto, note, scopes, notes"""
+Available commands: scope, return, note, notes, insights"""
 
 
 def run_policies_demo():

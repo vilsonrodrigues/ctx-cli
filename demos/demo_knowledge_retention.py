@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
+from prompts import SYSTEM_PROMPT_ECM
 from tokens import TokenTracker
 
 # =============================================================================
@@ -133,51 +134,7 @@ Tools: read_file, write_file
 
 Complete the task thoroughly."""
 
-SYSTEM_PROMPT_BRANCH = '''You are a software developer.
-
-Tools: read_file, write_file, ctx_cli
-
-# CONTEXT MANAGEMENT
-
-Your context resets between projects. Use ctx_cli to manage memory.
-
-# COMMANDS
-
-status                  Check current state, scopes, and available memory actions
-scope <name> -m "..."   Create new scope for a task
-note -m "..."           Save episodic memory to current scope
-insight -m "..."        Save global pattern (semantic memory)
-goto main -m "..."      Return to main scope
-notes                   Recall all episodic memory
-notes <scope>           Recall specific scope memory
-insights                Recall semantic memory
-
-# WORKFLOW
-
-1. STATUS FIRST: Always check `status` to see available scopes and memory
-2. SCOPE: Create a scope for your task
-3. RECALL: Check `notes` or `insights` for relevant patterns
-4. WORK: Read/write files
-5. NOTE: Record what you learned before leaving
-6. RETURN: goto main when done
-
-# EXAMPLE (Project B recalls Project A patterns)
-
-status
--> Shows: Previous Projects: [default] user-model (1 notes)
-
-notes user-model
--> Shows patterns from previous project
-
-scope product-model -m "Applying User validation pattern"
-
-write_file models/product.py [using pattern from notes]
-
-note -m "FILES: models/product.py
-APPLIED FROM user-model: validate_X pattern, is_valid(), to_dict()"
-
-goto main -m "Product model complete"
-'''
+SYSTEM_PROMPT_BRANCH = "You are a software developer.\n\nTools: read_file, write_file, ctx_cli\n\n" + SYSTEM_PROMPT_ECM
 
 
 def run_task(
@@ -263,7 +220,7 @@ def run_task(
                     cmd = args.get("command", "")
                     result, _ = execute_command(store, cmd)
                     # Check if model returned to main (task complete)
-                    if cmd.startswith("goto main"):
+                    if cmd.startswith("return"):
                         returned_to_main = True
                 else:
                     result = execute_tool(name, args, workdir)
