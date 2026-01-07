@@ -184,6 +184,7 @@ class Branch:
     notes: list[Note] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     head_note: str | None = None  # Note from checkout transition
+    finalized: bool = False  # Once finalized, scope cannot be reopened
 
     def get_last_commit_hash(self) -> str | None:
         return self.commits[-1].hash if self.commits else None
@@ -426,56 +427,224 @@ class ContextStore:
         self.command_history.append(f"commit -m \"{message}\"")
         return f"[{commit_hash[:7]}] {message}", event
 
-    def checkout(self, branch_name: str, note: str, create: bool = False) -> tuple[str, Event]:
-        """Switch scope with transition note."""
-        from_branch = self.current_branch
-        source_branch = self._get_current_branch()
-        pending_messages = []
+    def checkout(self, scope_name: str, note: str, create: bool = False) -> tuple[str, Event]:
+        """Switch scope with transition note.
+        
+        Key behavior:
+        - When creating a new scope (create=True), the tool call that triggered this
+          creation stays in the SOURCE scope (typically main). The new scope inherits
+          from main but starts fresh without the creation tool call.
+        - When switching to existing scope (create=False), pending tool calls are
+          carried over to maintain conversation continuity.
+        - If create=True but scope already exists, it switches but warns about it.
+        - RULE: scope can only be created from main. Use return first to go back to main.
+        """
+        from_scope = self.current_branch
+        source_scope = self._get_current_branch()
+        
+        # Check if trying to go to the scope we're already in
+        if scope_name == from_scope:
+            return f"Already in scope '{scope_name}'. No action needed.", None
+        
+        # RULE: scope can only be created from main
+        if create and from_scope != "main":
+            return f"ERROR: Cannot create scope from '{from_scope}'. Use 'return -m \"...\"' first to go back to main, then create the scope.", None
+        
+        # Check if trying to create an already existing scope
+        scope_already_exists = scope_name in self.branches
 
-        if source_branch.messages:
+
+        if not scope_already_exists:
+            if create:
+                # Always inherit from main, not from current scope
+                # This prevents accidental linearization
+                main_branch = self.branches.get("main")
+                
+                # Build the result message
+                result_message = f"Switched to scope '{scope_name}'"
+                
+                # Find the pending tool call that triggered this scope creation
+                pending_tool_call = None
+                pending_tool_call_id = None
+                
+                # Look for the tool call in the source scope (where the agent made the call)
+                for msg in reversed(source_scope.messages):
+                    if msg.role == "assistant" and msg.tool_calls:
+                        for tc in msg.tool_calls:
+                            tc_args = tc.get("function", {}).get("arguments", "") if isinstance(tc, dict) else ""
+                            if "scope" in tc_args and scope_name in tc_args:
+                                tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                                pending_tool_call = msg
+                                pending_tool_call_id = tc_id
+                                break
+                        break
+                
+                # If source scope is NOT main, add tool response to source scope
+                # This creates a "trail" so the model knows it navigated away
+                if from_scope != "main" and pending_tool_call_id:
+                    source_scope.messages.append(Message(
+                        role="tool",
+                        content=result_message,
+                        tool_call_id=pending_tool_call_id
+                    ))
+                    
+                    # Also replicate the tool call + response to main for the fork
+                    # Copy the assistant message with tool calls to main
+                    main_branch.messages.append(Message(
+                        role="assistant",
+                        content=pending_tool_call.content,
+                        tool_calls=pending_tool_call.tool_calls.copy() if pending_tool_call.tool_calls else None
+                    ))
+                    main_branch.messages.append(Message(
+                        role="tool",
+                        content=result_message,
+                        tool_call_id=pending_tool_call_id
+                    ))
+                elif pending_tool_call_id:
+                    # Source is main - just add response to main
+                    main_branch.messages.append(Message(
+                        role="tool",
+                        content=result_message,
+                        tool_call_id=pending_tool_call_id
+                    ))
+                
+                # Copy validated messages from main to new scope
+                # Filter out orphan tool_responses (without matching assistant+tool_calls)
+                inherited_messages = []
+                for m in main_branch.messages:
+                    # Skip tool responses that might be orphaned
+                    if m.role == "tool":
+                        # Check if there's a corresponding assistant message with this tool_call_id
+                        has_parent = False
+                        for prev in inherited_messages:
+                            if prev.role == "assistant" and prev.tool_calls:
+                                for tc in prev.tool_calls:
+                                    tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                                    if tc_id == m.tool_call_id:
+                                        has_parent = True
+                                        break
+                            if has_parent:
+                                break
+                        if not has_parent:
+                            continue  # Skip orphan tool response
+                    
+                    inherited_messages.append(Message(
+                        role=m.role, 
+                        content=m.content, 
+                        tool_calls=m.tool_calls.copy() if m.tool_calls else None,
+                        tool_call_id=m.tool_call_id
+                    ))
+                
+                self.branches[scope_name] = Branch(name=scope_name, messages=inherited_messages)
+                # Register new scope in current project
+                self._scope_to_project[scope_name] = self.current_project
+                
+                # Switch to new scope
+                self.current_branch = scope_name
+                target_scope = self._get_current_branch()
+                target_scope.head_note = f"[From {from_scope}] {note}"
+                
+                event = self._emit_event("checkout", {"from_scope": from_scope, "note": note})
+                self.command_history.append(f"scope {scope_name} -m \"{note}\"")
+                
+                return f"{result_message}. Current scope: {scope_name}", event
+            else:
+                return f"error: scope '{scope_name}' does not exist.", None
+        
+        # Switching to existing scope - carry over pending tool calls
+        pending_messages = []
+        if source_scope.messages:
             assistant_msg = None
             assistant_idx = -1
-            for i in range(len(source_branch.messages) - 1, -1, -1):
-                msg = source_branch.messages[i]
+            for i in range(len(source_scope.messages) - 1, -1, -1):
+                msg = source_scope.messages[i]
                 if msg.role == "assistant" and msg.tool_calls:
                     assistant_msg = msg
                     assistant_idx = i
                     break
             if assistant_msg:
-                tool_responses = [m for m in source_branch.messages[assistant_idx + 1:] if m.role == "tool"]
+                tool_responses = [m for m in source_scope.messages[assistant_idx + 1:] if m.role == "tool"]
                 pending_messages = [assistant_msg] + tool_responses
-
-        if branch_name not in self.branches:
-            if create:
-                main_branch = self.branches.get("main", source_branch)
-                inherited_messages = [
-                    Message(role=m.role, content=m.content, 
-                            tool_calls=m.tool_calls.copy() if m.tool_calls else None,
-                            tool_call_id=m.tool_call_id)
-                    for m in main_branch.messages
-                ]
-                self.branches[branch_name] = Branch(name=branch_name, messages=inherited_messages)
-                # Register new scope in current project
-                self._scope_to_project[branch_name] = self.current_project
-            else:
-                return f"error: branch '{branch_name}' does not exist.", None
         
-        self.current_branch = branch_name
-        target_branch = self._get_current_branch()
+        self.current_branch = scope_name
+        target_scope = self._get_current_branch()
 
         if pending_messages:
-            existing_ids = {m.tool_call_id for m in target_branch.messages if m.role == "tool"}
+            existing_ids = {m.tool_call_id for m in target_scope.messages if m.role == "tool"}
             for msg in pending_messages:
                 if msg.role == "assistant" or (msg.role == "tool" and msg.tool_call_id not in existing_ids):
-                    target_branch.messages.append(msg)
+                    target_scope.messages.append(msg)
 
-        if not create:
-            target_branch.messages.append(Message(role="assistant", content=f"[Returning from {from_branch}] {note}"))
+        target_scope.messages.append(Message(role="assistant", content=f"[Returning from {from_scope}] {note}"))
+        target_scope.head_note = f"[From {from_scope}] {note}"
+        
+        event = self._emit_event("checkout", {"from_scope": from_scope, "note": note})
+        self.command_history.append(f"goto {scope_name} -m \"{note}\"")
+        
+        # Differentiate message based on whether user tried to create an existing scope
+        if create and scope_already_exists:
+            # Check if scope is finalized
+            if self.branches[scope_name].finalized:
+                return f"ERROR: Scope '{scope_name}' is finalized and cannot be reopened. Create a new scope instead.", None
+            return f"Scope '{scope_name}' already exists. Switched to it. Current scope: {scope_name}", event
+        return f"Switched to scope '{scope_name}'. Current scope: {scope_name}", event
 
-        target_branch.head_note = f"[From {from_branch}] {note}"
-        event = self._emit_event("checkout", {"from_branch": from_branch, "note": note})
-        self.command_history.append(f"checkout {branch_name} -m \"{note}\"")
-        return f"Switched to branch '{branch_name}'", event
+    def return_to_main(self, note: str) -> tuple[str, Event]:
+        """Return to main and finalize current scope. Scope cannot be reopened."""
+        from_scope = self.current_branch
+        
+        # Already in main
+        if from_scope == "main":
+            return "Already in main. No action needed.", None
+        
+        # Get current scope
+        current_scope = self._get_current_branch()
+        
+        # Get main branch
+        main_branch = self.branches.get("main")
+        
+        # Find the pending tool call (the return command) and copy to main
+        pending_tool_call_id = None
+        pending_assistant_msg = None
+        for msg in reversed(current_scope.messages):
+            if msg.role == "assistant" and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tc_args = tc.get("function", {}).get("arguments", "") if isinstance(tc, dict) else ""
+                    if "return" in tc_args:
+                        tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                        if tc_id:
+                            pending_tool_call_id = tc_id
+                            pending_assistant_msg = msg
+                            break
+                if pending_tool_call_id:
+                    break
+        
+        # Build result message
+        result_message = f"Returned to main. Scope '{from_scope}' finalized."
+        if note:
+            result_message += f" Summary: {note[:200]}..."
+        
+        # Copy assistant message with tool_call to main, then add tool response
+        if pending_assistant_msg and pending_tool_call_id:
+            main_branch.messages.append(pending_assistant_msg)
+            main_branch.messages.append(Message(
+                role="tool",
+                content=result_message,
+                tool_call_id=pending_tool_call_id
+            ))
+        
+        # Add summary note to main
+        if note:
+            main_branch.notes.append(Note(content=f"[{from_scope}] {note}"))
+        
+        # Mark as finalized and switch to main
+        current_scope.finalized = True
+        self.current_branch = "main"
+        
+        event = self._emit_event("return", {"from_scope": from_scope, "note": note})
+        self.command_history.append(f"return -m \"{note}\"")
+        
+        return result_message, event
 
     # ... rest of the methods (tag, log, status, diff, history, stash, merge, etc.) follow similar pattern ...
     def status(self) -> tuple[str, Event]:
@@ -547,7 +716,16 @@ class ContextStore:
         return "\n".join(lines), self._emit_event("status", {})
 
     def add_message(self, message: Message) -> None:
-        self._get_current_branch().add_message(message)
+        """Add message to current branch context."""
+        branch = self._get_current_branch()
+        
+        # Avoid duplicate tool responses (same tool_call_id)
+        if message.role == "tool" and message.tool_call_id:
+            existing_ids = {m.tool_call_id for m in branch.messages if m.role == "tool" and m.tool_call_id}
+            if message.tool_call_id in existing_ids:
+                return  # Skip duplicate
+        
+        branch.add_message(message)
 
     def get_context(self, system_prompt: str | None = None) -> list[dict]:
         return self._get_current_branch().get_messages_for_api(system_prompt)

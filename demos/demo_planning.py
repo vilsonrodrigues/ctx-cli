@@ -18,36 +18,16 @@ import sys
 
 from openai import OpenAI
 
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from ctx_cli import CTX_CLI_TOOL, execute_command
 from ctx_store import ContextStore, Message
+from prompts4 import SYSTEM_PROMPT_ECM
 
-SYSTEM_PROMPT = """You are a technical architect planning a software project.
+# Use the standard ECM prompt from prompts.py
+SYSTEM_PROMPT = SYSTEM_PROMPT_ECM
 
-You have ctx_cli for exploring and comparing different approaches:
-
-## Planning Strategy with Scopes:
-1. Start on main with project requirements
-2. Create separate scopes for each major alternative
-3. Develop each approach in its scope with notes
-4. Return to main with findings
-
-## Example workflow:
-- scope approach-monolith -m "Exploring monolith architecture"
-- note -m "Monolith: [decision/tradeoff]"
-- goto main -m "Monolith analysis complete: [summary]"
-- scope approach-microservices -m "Exploring microservices"
-- note -m "Microservices: [decision/tradeoff]"
-- goto main -m "Microservices analysis complete: [summary]"
-
-## Best practices:
-- One scope per major alternative
-- Take notes on pros, cons, and decisions in each scope
-- Use descriptive scope names (approach-X, option-Y)
-- Always return to main with summary
-
-Think of scopes as parallel universes for exploring "what if" scenarios."""
 
 
 def run_planning():
@@ -87,6 +67,10 @@ def run_planning():
                     tool_calls=[tc.model_dump() for tc in message.tool_calls]
                 ))
 
+                # Mark start of tool call block
+                num_calls = len(message.tool_calls)
+                print(f"  ┌── Tool calls ({num_calls}) ──")
+                
                 tool_results = []
                 for tool_call in message.tool_calls:
                     if tool_call.function.name == "ctx_cli":
@@ -94,16 +78,23 @@ def run_planning():
                         result, _ = execute_command(store, args["command"])
                         cmd = args["command"]
                         if cmd.startswith("scope "):
-                            print(f"  🌿 SCOPE: {cmd}")
-                        elif cmd.startswith("goto "):
-                            print(f"  🔀 GOTO: {cmd}")
+                            print(f"  │ 🌿 SCOPE: {cmd}")
+                        elif cmd.startswith("return "):
+                            print(f"  │ ↩️ RETURN: {cmd}")
                         elif cmd.startswith("note "):
-                            print(f"  📝 NOTE: {cmd[:50]}...")
-                        elif cmd in ("scopes", "notes"):
-                            print(f"  📋 {cmd.upper()}")
+                            print(f"  │ 📝 NOTE: {cmd[:50]}...")
+                        elif cmd == "status":
+                            print(f"  │ 📊 STATUS")
+                        elif cmd.startswith("notes"):
+                            print(f"  │ 📋 NOTES: {cmd}")
+                        elif cmd == "insights":
+                            print(f"  │ 💡 INSIGHTS")
                         else:
-                            print(f"  [ctx] {cmd[:40]}")
+                            print(f"  │ [ctx] {cmd[:40]}")
                         tool_results.append((tool_call.id, result))
+                
+                # Mark end of tool call block
+                print(f"  └────────────────────")
 
                 for tool_id, result in tool_results:
                     store.add_message(Message(
@@ -213,11 +204,18 @@ def run_planning():
     print("=" * 70)
 
     print("\n🌿 Scopes Explored:")
-    result, _ = execute_command(store, "scopes")
+    result, _ = execute_command(store, "status")
+    # Extract scope lines from status output
+    in_scopes_section = False
     for line in result.split("\n"):
-        if line.strip():
-            scope_name = line.strip().replace("* ", "→ ").replace("  ", "  ")
-            print(f"  {scope_name}")
+        if "Scopes:" in line:
+            in_scopes_section = True
+            continue
+        if in_scopes_section:
+            if line.strip() and (line.strip().startswith("-") or line.strip().startswith("●")):
+                print(f"  {line.strip()}")
+            elif line.strip() and not line.startswith(" "):
+                break  # End of scopes section
 
     print("\n📋 Decision Trail (All Notes):")
     for scope_name, scope in store.branches.items():
@@ -227,9 +225,9 @@ def run_planning():
                 print(f"    [{note.hash[:7]}] {note.message[:50]}...")
 
     print("\n🔀 Scope Transitions:")
-    goto_events = [e for e in store.events if e.type == "checkout"]
-    if goto_events:
-        for e in goto_events[:5]:  # Show first 5
+    return_events = [e for e in store.events if e.type == "return"]
+    if return_events:
+        for e in return_events[:5]:  # Show first 5
             target = e.payload.get("branch", "?")
             print(f"  → {target}")
     else:
@@ -245,7 +243,7 @@ def run_planning():
     print("\n📊 Planning Statistics:")
     print(f"  Alternatives explored: {len(store.branches) - 1}")  # Exclude main
     print(f"  Total notes: {sum(len(s.commits) for s in store.branches.values())}")
-    print(f"  Scope transitions: {len(goto_events)}")
+    print(f"  Scope transitions: {len(return_events)}")
 
     print("\n💡 Key Insight:")
     print("  Scopes allowed exploring OT and CRDT in isolation.")

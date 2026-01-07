@@ -18,7 +18,7 @@ CTX_CLI_TOOL = {
         "name": "ctx_cli",
         "description": """Context management for LLM reasoning.\n\nCORE COMMANDS:
   scope <name> -m "<note>"   Create new reasoning scope. Use namespaces (e.g., plan/task-x, fix/bug-y).
-  goto <name> -m "<note>"    Switch to existing scope.
+  return -m "<note>"         Return to main and finalize current scope. Scope cannot be reopened.
   note -m "<message>"        Record episodic memory (event) in current scope.
   insight -m "<message>"     Record semantic memory (global fact/pattern).
   status                     Show current scope, all scopes (by project), and memory stats.
@@ -30,7 +30,7 @@ WORKFLOW FOR PLANNING:
   2. ctx_cli insights           # Check global rules
   3. ctx_cli notes              # Check history
   4. [Synthesize Plan]
-  5. ctx_cli goto main -m "Plan ready: ..."
+  5. ctx_cli return -m "Plan ready: ..."
 """,
         "parameters": {
             "type": "object",
@@ -60,11 +60,10 @@ def execute_command(store: ContextStore, command: str) -> tuple[str, Event | Non
         if "-m" in tokens: m = tokens[tokens.index("-m") + 1]
         return store.checkout(name, m, create=True)
 
-    if action == "goto":
-        name = tokens[1] if len(tokens) > 1 else None
+    if action == "return":
         m = ""
         if "-m" in tokens: m = tokens[tokens.index("-m") + 1]
-        return store.checkout(name, m, create=False)
+        return store.return_to_main(m)
 
     if action == "note":
         m = ""
