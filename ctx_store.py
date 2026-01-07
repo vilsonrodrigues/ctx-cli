@@ -463,51 +463,6 @@ class ContextStore:
                 # Build the result message
                 result_message = f"Switched to scope '{scope_name}'"
                 
-                # Find the pending tool call that triggered this scope creation
-                pending_tool_call = None
-                pending_tool_call_id = None
-                
-                # Look for the tool call in the source scope (where the agent made the call)
-                for msg in reversed(source_scope.messages):
-                    if msg.role == "assistant" and msg.tool_calls:
-                        for tc in msg.tool_calls:
-                            tc_args = tc.get("function", {}).get("arguments", "") if isinstance(tc, dict) else ""
-                            if "scope" in tc_args and scope_name in tc_args:
-                                tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
-                                pending_tool_call = msg
-                                pending_tool_call_id = tc_id
-                                break
-                        break
-                
-                # If source scope is NOT main, add tool response to source scope
-                # This creates a "trail" so the model knows it navigated away
-                if from_scope != "main" and pending_tool_call_id:
-                    source_scope.messages.append(Message(
-                        role="tool",
-                        content=result_message,
-                        tool_call_id=pending_tool_call_id
-                    ))
-                    
-                    # Also replicate the tool call + response to main for the fork
-                    # Copy the assistant message with tool calls to main
-                    main_branch.messages.append(Message(
-                        role="assistant",
-                        content=pending_tool_call.content,
-                        tool_calls=pending_tool_call.tool_calls.copy() if pending_tool_call.tool_calls else None
-                    ))
-                    main_branch.messages.append(Message(
-                        role="tool",
-                        content=result_message,
-                        tool_call_id=pending_tool_call_id
-                    ))
-                elif pending_tool_call_id:
-                    # Source is main - just add response to main
-                    main_branch.messages.append(Message(
-                        role="tool",
-                        content=result_message,
-                        tool_call_id=pending_tool_call_id
-                    ))
-                
                 # Copy validated messages from main to new scope
                 # Filter out orphan tool_responses (without matching assistant+tool_calls)
                 inherited_messages = []
@@ -725,20 +680,25 @@ class ContextStore:
         Execute a ctx_cli command with proper context management.
         
         This method handles the complete tool call lifecycle:
-        1. Adds assistant message with tool_call to the correct scope
+        1. Adds assistant message with tool_call to the correct scope (start_branch)
         2. Executes the command
-        3. Adds tool response to the correct scope
-        
-        For commands that include 'return', messages go to main (since we'll end up there).
+        3. Adds tool response to start_branch
+        4. If scope changed and inherited the call, adds tool response to new scope too
         
         Returns the result string.
         """
         from ctx_cli import execute_command
         
-        # Check if this command will result in returning to main
-        # This includes: 'return', 'return;scope', etc.
-        will_return_to_main = "return" in command
+        # Robust check for return command (word boundary or start of sub-command)
+        will_return_to_main = any(cmd.strip().startswith("return") 
+                                 for cmd in command.split(";"))
         
+        # Determine start branch (where the interaction logically begins)
+        if will_return_to_main and self.current_branch != "main":
+             start_branch = self.branches["main"]
+        else:
+             start_branch = self._get_current_branch()
+
         # Create assistant message
         assistant_msg = Message(
             role="assistant",
@@ -753,32 +713,40 @@ class ContextStore:
             }]
         )
         
-        if will_return_to_main and self.current_branch != "main":
-            # Return command: add assistant to main BEFORE execution
-            main_branch = self.branches["main"]
-            main_branch.add_message(assistant_msg)
-        else:
-            # Normal: add to current scope
-            self.add_message(assistant_msg)
+        # 1. Add assistant message
+        start_branch.add_message(assistant_msg)
         
-        # Execute command
+        # 2. Execute command
         result, _ = execute_command(self, command)
         
-        # Add tool response
-        if will_return_to_main:
-            # Return commands: tool response also goes to main
-            main_branch = self.branches["main"]
-            main_branch.add_message(Message(
-                role="tool",
-                content=result,
-                tool_call_id=tool_call_id
-            ))
-        else:
-            # Normal: goes to current scope (which may have changed)
-            self.add_message(Message(
-                role="tool",
-                content=result,
-                tool_call_id=tool_call_id
-            ))
+        # Create tool response
+        tool_msg = Message(
+            role="tool",
+            content=result,
+            tool_call_id=tool_call_id
+        )
+
+        # 3. Add tool response to start_branch (Close the loop)
+        start_branch.add_message(tool_msg)
+        
+        # 4. Check if final branch needs the response too
+        # (If we switched scopes, the new scope might have inherited the assistant msg)
+        final_branch = self._get_current_branch()
+        if final_branch != start_branch:
+             # Check if tool_call_id is present in final_branch messages (as assistant call)
+             # but missing response
+             has_pending = any(
+                 m.role == "assistant" and 
+                 m.tool_calls and 
+                 any(tc.get("id") == tool_call_id for tc in m.tool_calls)
+                 for m in final_branch.messages
+             )
+             has_response = any(
+                 m.role == "tool" and m.tool_call_id == tool_call_id
+                 for m in final_branch.messages
+             )
+             
+             if has_pending and not has_response:
+                 final_branch.add_message(tool_msg)
         
         return result
