@@ -124,7 +124,8 @@ class SWEBenchCLHarness(OfficialHarness):
         """Get available repository sequences."""
         if self._curriculum is None:
             return []
-        return list(self._curriculum.get("sequences", {}).keys())
+        sequences = self._curriculum.get("sequences", [])
+        return [seq.get("id", "") for seq in sequences]
 
     def load_tasks(self, config: dict) -> Iterator[HarnessTask]:
         """
@@ -144,42 +145,69 @@ class SWEBenchCLHarness(OfficialHarness):
 
         self._current_sequence = sequence_id
 
-        sequences = self._curriculum.get("sequences", {})
-        if sequence_id not in sequences:
-            available = ", ".join(sequences.keys())
+        # Handle real data format (list of sequence dicts)
+        sequences = self._curriculum.get("sequences", [])
+
+        # Find matching sequence
+        sequence_data = None
+        available_sequences = []
+
+        for seq in sequences:
+            seq_id = seq.get("id", "")
+            repo = seq.get("repo", "")
+            # Match by sequence id or repo name
+            available_sequences.append(seq_id)
+            if sequence_id in seq_id or sequence_id in repo or seq_id.startswith(sequence_id):
+                sequence_data = seq
+                break
+
+        if sequence_data is None:
+            available = ", ".join(available_sequences)
             raise ValueError(f"Unknown sequence: {sequence_id}. Available: {available}")
 
-        tasks = sequences[sequence_id]
+        tasks = sequence_data.get("tasks", [])
 
         # Sort by creation date for chronological order
-        tasks = sorted(tasks, key=lambda t: t.get("created_at", ""))
+        tasks = sorted(tasks, key=lambda t: t.get("metadata", {}).get("created_at", ""))
 
         # Limit tasks
         tasks = tasks[:max_tasks]
 
         # Build dependency graph
-        task_ids = [t["instance_id"] for t in tasks]
+        task_ids = []
+        for t in tasks:
+            task_id = t.get("metadata", {}).get("instance_id") or f"task_{len(task_ids)}"
+            task_ids.append(task_id)
 
         for i, task_data in enumerate(tasks):
-            # Dependencies are all previous tasks in sequence
-            dependencies = task_ids[:i] if i > 0 else []
+            # Extract from nested structure
+            metadata = task_data.get("metadata", {})
+            task_info = task_data.get("task", {})
+            evaluation = task_data.get("evaluation", {})
+            cl_info = task_data.get("continual_learning", {})
+
+            task_id = metadata.get("instance_id") or f"task_{i}"
+
+            # Dependencies from CL info or all previous tasks
+            dependencies = cl_info.get("dependencies", task_ids[:i] if i > 0 else [])
 
             yield HarnessTask(
-                task_id=task_data["instance_id"],
+                task_id=task_id,
                 task_type="continual_learning",
-                instruction=task_data["problem_statement"],
+                instruction=task_info.get("problem_statement", ""),
                 metadata={
-                    "repo": task_data.get("repo", sequence_id),
-                    "base_commit": task_data.get("base_commit", ""),
-                    "hints": task_data.get("hints_text", ""),
-                    "created_at": task_data.get("created_at", ""),
-                    "difficulty": task_data.get("difficulty", "medium"),
-                    "sequence_position": i,
+                    "repo": metadata.get("repo", sequence_data.get("repo", "")),
+                    "base_commit": metadata.get("base_commit", ""),
+                    "hints": task_info.get("hints_text", ""),
+                    "created_at": metadata.get("created_at", ""),
+                    "difficulty": metadata.get("difficulty", "medium"),
+                    "sequence_position": cl_info.get("sequence_position", i),
+                    "modified_files": cl_info.get("modified_files", []),
                 },
                 dependencies=dependencies,
-                ground_truth=task_data.get("gold_patch", ""),
-                repo=task_data.get("repo", sequence_id),
-                difficulty=task_data.get("difficulty", "medium"),
+                ground_truth=evaluation.get("patch", ""),
+                repo=metadata.get("repo", sequence_data.get("repo", "")),
+                difficulty=metadata.get("difficulty", "medium"),
             )
 
     def execute_task(self, task: HarnessTask, agent_action: str) -> HarnessResult:

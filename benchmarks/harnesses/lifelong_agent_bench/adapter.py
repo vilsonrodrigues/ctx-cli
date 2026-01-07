@@ -111,17 +111,17 @@ class LifelongAgentBenchHarness(OfficialHarness):
         return True
 
     def _load_tasks(self) -> None:
-        """Load task data from files or generate synthetic tasks."""
-        # In production, this would load from official dataset
-        # For now, generate representative tasks
-
+        """Load task data from official dataset or generate synthetic tasks."""
         for env in self.ENVIRONMENTS:
             data_file = self.data_dir / f"tasks_{env}.json"
             if data_file.exists():
+                print(f"[LifelongAgentBench] Loading {env} tasks from {data_file}")
                 with open(data_file) as f:
                     self._tasks[env] = json.load(f)
+                print(f"[LifelongAgentBench] Loaded {len(self._tasks[env])} {env} tasks")
             else:
                 # Generate synthetic tasks for development
+                print(f"[LifelongAgentBench] No data file for {env}, generating synthetic tasks")
                 self._tasks[env] = self._generate_tasks(env)
 
     def _generate_tasks(self, environment: str) -> list[dict]:
@@ -197,13 +197,29 @@ class LifelongAgentBenchHarness(OfficialHarness):
             tasks = self._tasks[env][:max_tasks]
 
             for task_data in tasks:
+                # Handle skill_list which can be a list or string
+                skill_list = task_data.get("skill_list", task_data.get("skill", "unknown"))
+                if isinstance(skill_list, list):
+                    skill = ", ".join(skill_list)
+                elif isinstance(skill_list, str) and skill_list.startswith("["):
+                    try:
+                        skill = ", ".join(eval(skill_list))
+                    except:
+                        skill = skill_list
+                else:
+                    skill = str(skill_list)
+
                 yield HarnessTask(
                     task_id=task_data["task_id"],
                     task_type="continual_learning",
                     instruction=task_data["instruction"],
                     metadata={
-                        "skill": task_data.get("skill", "unknown"),
+                        "skill": skill,
+                        "skill_list": skill_list,
                         "expected_skill_reuse": task_data.get("expected_skill_reuse", False),
+                        "reused_skills": task_data.get("reused_skills", []),
+                        "table_info": task_data.get("table_info", {}),
+                        "answer_info": task_data.get("answer_info", {}),
                     },
                     dependencies=task_data.get("dependencies", []),
                     environment=env,
