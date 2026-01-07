@@ -61,23 +61,34 @@ def run_planning():
             message = response.choices[0].message
 
             if message.tool_calls:
-                store.add_message(Message(
-                    role="assistant",
-                    content=message.content or "",
-                    tool_calls=[tc.model_dump() for tc in message.tool_calls]
-                ))
-
                 # Mark start of tool call block
                 num_calls = len(message.tool_calls)
                 print(f"  ┌── Tool calls ({num_calls}) ──")
                 
-                tool_results = []
                 for tool_call in message.tool_calls:
                     if tool_call.function.name == "ctx_cli":
                         args = json.loads(tool_call.function.arguments)
-                        result, _ = execute_command(store, args["command"])
                         cmd = args["command"]
-                        if cmd.startswith("scope "):
+                        
+                        # Use the context harness for proper message management
+                        result = store.execute_tool_call(
+                            tool_call_id=tool_call.id,
+                            command=cmd,
+                            assistant_content=message.content or ""
+                        )
+                        
+                        # Print command output
+                        if ";" in cmd:
+                            # Multiple commands
+                            for subcmd in cmd.split(";"):
+                                subcmd = subcmd.strip()
+                                if subcmd.startswith("scope "):
+                                    print(f"  │ 🌿 SCOPE: {subcmd}")
+                                elif subcmd.startswith("return "):
+                                    print(f"  │ ↩️ RETURN: {subcmd[:60]}...")
+                                elif subcmd.startswith("note "):
+                                    print(f"  │ 📝 NOTE: {subcmd[:50]}...")
+                        elif cmd.startswith("scope "):
                             print(f"  │ 🌿 SCOPE: {cmd}")
                         elif cmd.startswith("return "):
                             print(f"  │ ↩️ RETURN: {cmd}")
@@ -91,17 +102,9 @@ def run_planning():
                             print(f"  │ 💡 INSIGHTS")
                         else:
                             print(f"  │ [ctx] {cmd[:40]}")
-                        tool_results.append((tool_call.id, result))
                 
                 # Mark end of tool call block
                 print(f"  └────────────────────")
-
-                for tool_id, result in tool_results:
-                    store.add_message(Message(
-                        role="tool",
-                        content=result,
-                        tool_call_id=tool_id,
-                    ))
             else:
                 store.add_message(Message(
                     role="assistant",

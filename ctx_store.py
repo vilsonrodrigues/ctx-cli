@@ -603,35 +603,10 @@ class ContextStore:
         # Get main branch
         main_branch = self.branches.get("main")
         
-        # Find the pending tool call (the return command) and copy to main
-        pending_tool_call_id = None
-        pending_assistant_msg = None
-        for msg in reversed(current_scope.messages):
-            if msg.role == "assistant" and msg.tool_calls:
-                for tc in msg.tool_calls:
-                    tc_args = tc.get("function", {}).get("arguments", "") if isinstance(tc, dict) else ""
-                    if "return" in tc_args:
-                        tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
-                        if tc_id:
-                            pending_tool_call_id = tc_id
-                            pending_assistant_msg = msg
-                            break
-                if pending_tool_call_id:
-                    break
-        
         # Build result message
         result_message = f"Returned to main. Scope '{from_scope}' finalized."
         if note:
             result_message += f" Summary: {note[:200]}..."
-        
-        # Copy assistant message with tool_call to main, then add tool response
-        if pending_assistant_msg and pending_tool_call_id:
-            main_branch.messages.append(pending_assistant_msg)
-            main_branch.messages.append(Message(
-                role="tool",
-                content=result_message,
-                tool_call_id=pending_tool_call_id
-            ))
         
         # Add summary note to main
         if note:
@@ -744,3 +719,66 @@ class ContextStore:
                 for name, b in self.branches.items()
             }
         }
+
+    def execute_tool_call(self, tool_call_id: str, command: str, assistant_content: str = "") -> str:
+        """
+        Execute a ctx_cli command with proper context management.
+        
+        This method handles the complete tool call lifecycle:
+        1. Adds assistant message with tool_call to the correct scope
+        2. Executes the command
+        3. Adds tool response to the correct scope
+        
+        For commands that include 'return', messages go to main (since we'll end up there).
+        
+        Returns the result string.
+        """
+        from ctx_cli import execute_command
+        
+        # Check if this command will result in returning to main
+        # This includes: 'return', 'return;scope', etc.
+        will_return_to_main = "return" in command
+        
+        # Create assistant message
+        assistant_msg = Message(
+            role="assistant",
+            content=assistant_content,
+            tool_calls=[{
+                "id": tool_call_id,
+                "type": "function",
+                "function": {
+                    "name": "ctx_cli",
+                    "arguments": f'{{"command": "{command}"}}'
+                }
+            }]
+        )
+        
+        if will_return_to_main and self.current_branch != "main":
+            # Return command: add assistant to main BEFORE execution
+            main_branch = self.branches["main"]
+            main_branch.add_message(assistant_msg)
+        else:
+            # Normal: add to current scope
+            self.add_message(assistant_msg)
+        
+        # Execute command
+        result, _ = execute_command(self, command)
+        
+        # Add tool response
+        if will_return_to_main:
+            # Return commands: tool response also goes to main
+            main_branch = self.branches["main"]
+            main_branch.add_message(Message(
+                role="tool",
+                content=result,
+                tool_call_id=tool_call_id
+            ))
+        else:
+            # Normal: goes to current scope (which may have changed)
+            self.add_message(Message(
+                role="tool",
+                content=result,
+                tool_call_id=tool_call_id
+            ))
+        
+        return result
