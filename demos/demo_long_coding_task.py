@@ -529,6 +529,43 @@ def run_comparison(num_steps: int = 6):
         print(f"  → ECM shines on longer tasks with 6+ interdependent steps")
     print("=" * 70)
 
+    # Export metrics to JSON
+    import json
+    from datetime import datetime
+
+    export_data = {
+        "timestamp": datetime.now().isoformat(),
+        "num_steps": num_steps,
+        "linear": {
+            "peak_working": linear_result["peak_working_tokens"],
+            "final_working": linear_result["final_working_tokens"],
+            "iterations": linear_result["iterations"],
+            "total_output": linear_result["total_output_tokens"],
+        },
+        "ecm": {
+            "peak_working": branch_result["peak_working_tokens"],
+            "final_working": branch_result["final_working_tokens"],
+            "iterations": branch_result["iterations"],
+            "total_output": branch_result["total_output_tokens"],
+            "scopes": branch_result["ecm_stats"].get("scopes_created", 0),
+            "notes": branch_result["ecm_stats"].get("notes_created", 0),
+            "insights": branch_result["ecm_stats"].get("insights_created", 0),
+        },
+        "savings": {
+            "peak_tokens": working_savings,
+            "peak_pct": working_pct,
+            "final_tokens": final_savings,
+            "final_pct": final_pct,
+        }
+    }
+
+    output_file = f"results/coding_task_{num_steps}steps_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    os.makedirs("results", exist_ok=True)
+    with open(output_file, "w") as f:
+        json.dump(export_data, f, indent=2)
+
+    print(f"\n📁 Results exported to: {output_file}")
+
     return linear_result, branch_result
 
 

@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-01-07T17:24:57.938474",
+  "num_steps": 6,
+  "linear": {
+    "peak_working": 11020,
+    "final_working": 11020,
+    "iterations": 21,
+    "total_output": 4921
+  },
+  "ecm": {
+    "peak_working": 2875,
+    "final_working": 1997,
+    "iterations": 25,
+    "total_output": 3676,
+    "scopes": 6,
+    "notes": 6,
+    "insights": 0
+  },
+  "savings": {
+    "peak_tokens": 8145,
+    "peak_pct": 73.91107078039929,
+    "final_tokens": 9023,
+    "final_pct": 81.87840290381125
+  }
+}
