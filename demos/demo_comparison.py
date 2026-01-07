@@ -111,23 +111,20 @@ def run_scope_approach(client: OpenAI, tracker: TokenTracker) -> dict:
             message = response.choices[0].message
 
             if message.tool_calls:
-                store.add_message(Message(
-                    role="assistant",
-                    content=message.content or "",
-                    tool_calls=[tc.model_dump() for tc in message.tool_calls]
-                ))
-
                 for tool_call in message.tool_calls:
                     if tool_call.function.name == "ctx_cli":
                         args = json.loads(tool_call.function.arguments)
-                        result, _ = execute_command(store, args["command"])
-                        if "note" in args["command"]:
-                            notes_made += 1
-                        store.add_message(Message(
-                            role="tool",
-                            content=result,
+                        cmd = args["command"]
+
+                        # Use execute_tool_call for proper message management
+                        result = store.execute_tool_call(
                             tool_call_id=tool_call.id,
-                        ))
+                            command=cmd,
+                            assistant_content=message.content or ""
+                        )
+
+                        if "note" in cmd:
+                            notes_made += 1
 
                 # Refresh context after tool calls
                 context = store.get_context(system_prompt)

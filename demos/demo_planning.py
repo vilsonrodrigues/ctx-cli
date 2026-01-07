@@ -222,10 +222,10 @@ def run_planning():
 
     print("\n📋 Decision Trail (All Notes):")
     for scope_name, scope in store.branches.items():
-        if scope.commits:
+        if scope.notes:
             print(f"\n  [{scope_name}]")
-            for note in scope.commits:
-                print(f"    [{note.hash[:7]}] {note.message[:50]}...")
+            for note in scope.notes:
+                print(f"    • {note.content[:80]}...")
 
     print("\n🔀 Scope Transitions:")
     return_events = [e for e in store.events if e.type == "return"]
@@ -245,7 +245,7 @@ def run_planning():
 
     print("\n📊 Planning Statistics:")
     print(f"  Alternatives explored: {len(store.branches) - 1}")  # Exclude main
-    print(f"  Total notes: {sum(len(s.commits) for s in store.branches.values())}")
+    print(f"  Total notes: {sum(len(s.notes) for s in store.branches.values())}")
     print(f"  Scope transitions: {len(return_events)}")
 
     print("\n💡 Key Insight:")
