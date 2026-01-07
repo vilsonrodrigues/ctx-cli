@@ -30,9 +30,12 @@ Manage the agent's active reasoning space.
 
 *   **`scope <name> -m "<reason>"`**
     *   Creates a new reasoning scope (branch) and switches to it.
+    *   **Rule:** ONLY valid from the `main` scope.
     *   Best Practice: Use Git-style namespaces like `plan/task-x`, `fix/issue-y`.
-*   **`goto <name> -m "<summary>"`**
-    *   Switches back to an existing scope.
+*   **`return -m "<summary>"`**
+    *   Finalizes the current scope and returns to `main`.
+    *   **Rule:** ONLY valid from inside a scope.
+    *   **Effect:** The scope is closed permanently (notes persist, messages are discarded).
 *   **`status`**
     *   Shows current scope, all scopes (grouped by project), and memory stats with action hints.
 
@@ -42,6 +45,7 @@ Save technical knowledge before clearing the context.
 *   **`note -m "<message>"`** (Episodic)
     *   Scope: Local to the current scope.
     *   Usage: Record specific technical details, file paths, or intermediate results.
+    *   **Tip:** Use this often. Notes are your only memory after `return`.
 *   **`insight -m "<message>"`** (Semantic)
     *   Scope: Global. Visible from any scope.
     *   Usage: Record project-wide rules, architecture patterns, or universal truths discovered.
@@ -92,10 +96,9 @@ Memory:
   Notes: 2
 
 Actions:
-  note -m "..."       Record to current scope
-  insight -m "..."    Record global pattern
+  note -m "..."       Record to current scope (Persists)
+  return -m "..."     Finalize scope & return to main
   notes               Recall all episodic memory
-  notes <scope>       Recall scope episodic memory
   insights            Recall semantic memory
 ```
 
@@ -107,8 +110,8 @@ Actions:
 2.  **Pull Knowledge:** `notes`, `insights` — Load relevant context
 3.  **Open Scope:** `scope plan/fix-auth -m "Reasoning about auth bug"`
 4.  **Synthesize:** Reasoning happens in this clean, isolated space
-5.  **Record:** `note -m "..."` — Save what you learned
-6.  **Return:** `goto main -m "Plan ready: ..."`
+5.  **Record:** `note -m "..."` — Save what you learned (CRITICAL)
+6.  **Return:** `return -m "Plan ready: use strategy X"` — Context is cleared, summary stored in main
 
 ---
 
