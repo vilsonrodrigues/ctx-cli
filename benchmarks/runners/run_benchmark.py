@@ -29,18 +29,21 @@ SIZES = {
         "lifelong-agent-bench": {"max_tasks": 10, "environment": "db"},
         "appworld": {"max_tasks": 5},
         "osworld": {"max_tasks": 5},
+        "the-agent-company": {"max_tasks": 5, "role": None},  # All roles
     },
     "small": {
         "swe-bench-cl": {"max_tasks": 15, "sequence": "django"},
         "lifelong-agent-bench": {"max_tasks": 30, "environment": ["db", "os"]},
         "appworld": {"max_tasks": 15},
         "osworld": {"max_tasks": 15},
+        "the-agent-company": {"max_tasks": 10, "role": None},
     },
     "full": {
         "swe-bench-cl": {"max_tasks": 50, "sequence": "django"},
         "lifelong-agent-bench": {"max_tasks": 100, "environment": "all"},
         "appworld": {"max_tasks": 50},
         "osworld": {"max_tasks": 50},
+        "the-agent-company": {"max_tasks": 50, "role": None},
     },
 }
 
@@ -168,6 +171,12 @@ def run_benchmark(
             adapter = OSWorldAdapter(harness, ecm_agent, model)
             token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
 
+        elif benchmark == "the-agent-company":
+            from benchmarks.harnesses.the_agent_company import TheAgentCompanyAdapter
+            adapter = TheAgentCompanyAdapter(harness, ecm_agent, model)
+            # Company context persists across all tasks
+            token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
+
         else:
             print(f"[{benchmark}] Adapter not implemented")
             token_report = CumulativeTokenReport(agent_type="ecm", model=model, benchmark=benchmark)
@@ -278,6 +287,11 @@ Examples:
         help="Environment for LifelongAgentBench (db, os, kg, or all)",
     )
     parser.add_argument(
+        "--role",
+        choices=["swe", "pm", "data_scientist", "hr", "finance", "admin"],
+        help="Role filter for TheAgentCompany (default: all roles)",
+    )
+    parser.add_argument(
         "--max-tasks",
         type=int,
         help="Maximum tasks to run (overrides size default)",
@@ -307,6 +321,8 @@ Examples:
         kwargs["sequence"] = args.sequence
     if args.environment:
         kwargs["environment"] = args.environment
+    if args.role:
+        kwargs["role"] = args.role
     if args.max_tasks:
         kwargs["max_tasks"] = args.max_tasks
 

@@ -6,6 +6,7 @@ Each harness provides integration with an official benchmark:
 - lifelong_agent_bench: LifelongAgentBench (DB/OS/KG)
 - appworld: AppWorld multi-app environment
 - osworld: OSWorld desktop automation
+- the_agent_company: TheAgentCompany workplace simulation
 """
 
 # Harness implementations are loaded on-demand to avoid import errors
@@ -39,6 +40,13 @@ AVAILABLE_HARNESSES = {
         "description": "OSWorld - Desktop automation with real VMs",
         "type": "long_horizon",
         "requires": ["docker", "vmware"],
+    },
+    "the-agent-company": {
+        "module": "benchmarks.harnesses.the_agent_company",
+        "class": "TheAgentCompanyHarness",
+        "description": "TheAgentCompany - Realistic workplace tasks with persistent company environment",
+        "type": "long_horizon",
+        "requires": ["docker"],
     },
 }
 
