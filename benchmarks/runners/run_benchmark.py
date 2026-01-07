@@ -29,7 +29,8 @@ SIZES = {
         "lifelong-agent-bench": {"max_tasks": 10, "environment": "db"},
         "appworld": {"max_tasks": 5},
         "osworld": {"max_tasks": 5},
-        "the-agent-company": {"max_tasks": 5, "role": None},  # All roles
+        "the-agent-company": {"max_tasks": 5, "role": None},
+        "gaia": {"max_tasks": 10, "level": 1},
     },
     "small": {
         "swe-bench-cl": {"max_tasks": 15, "sequence": "django"},
@@ -37,6 +38,7 @@ SIZES = {
         "appworld": {"max_tasks": 15},
         "osworld": {"max_tasks": 15},
         "the-agent-company": {"max_tasks": 10, "role": None},
+        "gaia": {"max_tasks": 30, "level": None},
     },
     "full": {
         "swe-bench-cl": {"max_tasks": 50, "sequence": "django"},
@@ -44,6 +46,7 @@ SIZES = {
         "appworld": {"max_tasks": 50},
         "osworld": {"max_tasks": 50},
         "the-agent-company": {"max_tasks": 50, "role": None},
+        "gaia": {"max_tasks": 150, "level": None},
     },
 }
 
@@ -175,6 +178,12 @@ def run_benchmark(
             from benchmarks.harnesses.the_agent_company import TheAgentCompanyAdapter
             adapter = TheAgentCompanyAdapter(harness, ecm_agent, model)
             # Company context persists across all tasks
+            token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
+
+        elif benchmark == "gaia":
+            from benchmarks.harnesses.gaia import GAIAAdapter
+            adapter = GAIAAdapter(harness, ecm_agent, model)
+            # Patterns from earlier questions help with later ones
             token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
 
         else:

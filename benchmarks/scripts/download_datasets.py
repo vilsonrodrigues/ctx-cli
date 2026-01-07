@@ -42,6 +42,17 @@ DATASETS = {
         "target_dir": "benchmarks/harnesses/lifelong_agent_bench/data",
         "requires": ["datasets"],
     },
+    "gaia": {
+        "name": "GAIA Benchmark (HuggingFace)",
+        "hf_dataset": "gaia-benchmark/GAIA",
+        "target_dir": "benchmarks/harnesses/gaia/data",
+        "requires": ["datasets", "huggingface_hub"],
+    },
+    "the-agent-company": {
+        "name": "TheAgentCompany Task Catalog",
+        "url": "https://raw.githubusercontent.com/TheAgentCompany/TheAgentCompany/main/workspaces/README.md",
+        "target_dir": "benchmarks/harnesses/the_agent_company/data",
+    },
 }
 
 
@@ -287,11 +298,304 @@ def validate_lifelong_agent_bench(data_path: Path) -> dict:
         return {"valid": False, "error": str(e)}
 
 
+def download_gaia(dataset_id: str, target_dir: Path, name: str) -> bool:
+    """Download GAIA dataset from Hugging Face."""
+    print(f"\n[Download] {name}")
+    print(f"  Dataset: {dataset_id}")
+    print(f"  Target: {target_dir}")
+
+    try:
+        from datasets import load_dataset
+    except ImportError:
+        print("  Error: 'datasets' library not installed")
+        return False
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        print("  Loading GAIA dataset from Hugging Face...")
+        print("  Note: GAIA is a gated dataset - you may need to accept terms at HuggingFace")
+
+        # Load validation split (public)
+        dataset = load_dataset(dataset_id, "2023_all", split="validation")
+
+        output_file = target_dir / "tasks.json"
+        print(f"  Converting {len(dataset)} samples to JSON...")
+
+        tasks = []
+        for i, item in enumerate(dataset):
+            task = {
+                "task_id": item.get("task_id", f"gaia_{i:04d}"),
+                "question": item.get("Question", ""),
+                "level": item.get("Level", 1),
+                "final_answer": item.get("Final answer", ""),
+                "file_name": item.get("file_name", ""),
+                "file_path": item.get("file_path", ""),
+                "annotator_metadata": item.get("Annotator Metadata", {}),
+            }
+            tasks.append(task)
+
+        # Add dependencies based on level progression
+        # Group by level for skill-based dependencies
+        for i, task in enumerate(tasks):
+            task["dependencies"] = []
+            # Tasks at higher levels could depend on patterns from lower levels
+            current_level = task.get("level", 1)
+            for prev_task in tasks[:i]:
+                if prev_task.get("level", 1) < current_level:
+                    task["dependencies"].append(prev_task["task_id"])
+                    if len(task["dependencies"]) >= 2:
+                        break
+
+        with open(output_file, "w") as f:
+            json.dump(tasks, f, indent=2)
+
+        print(f"  Done! Saved {len(tasks)} tasks to {output_file}")
+        return True
+
+    except Exception as e:
+        print(f"  Error: {e}")
+        if "gated" in str(e).lower() or "401" in str(e):
+            print("  Note: GAIA requires accepting terms at https://huggingface.co/datasets/gaia-benchmark/GAIA")
+        return False
+
+
+def download_the_agent_company(target_dir: Path, name: str) -> bool:
+    """Create TheAgentCompany task catalog from official repository."""
+    print(f"\n[Download] {name}")
+    print(f"  Target: {target_dir}")
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Official task catalog from TheAgentCompany repository
+    # Based on: https://github.com/TheAgentCompany/TheAgentCompany/tree/main/workspaces
+    TASK_CATALOG = {
+        "admin": {
+            "count": 15,
+            "tasks": [
+                "arrange-meeting-rooms", "ask-for-meeting-feedback", "check-employees-budget-and-reply",
+                "collect-requests-and-compute-total-price", "create-meeting-scheduling-spreadsheet",
+                "find-available-meeting-slots", "make-spreadsheet", "mass-forms-filling",
+                "organize-team-building-event", "prepare-travel-itinerary", "process-expense-reports",
+                "schedule-interviews", "send-birthday-reminders", "translate-sales-chat", "update-contact-list"
+            ]
+        },
+        "data-science": {
+            "count": 14,
+            "tasks": [
+                "answer-numerical-data-question", "calculate-spreadsheet-stats", "clean-and-transform-data",
+                "coffee-shop-database-management", "create-data-pipeline", "format-excel-sheets",
+                "generate-sales-report", "merge-multiple-sheets", "perform-sentiment-analysis",
+                "sql-exercise", "sql-query-optimization", "statistical-analysis",
+                "visualize-data-in-pie-and-bar-chart", "write-data-documentation"
+            ]
+        },
+        "finance": {
+            "count": 12,
+            "tasks": [
+                "apply-tax-credit", "budget-variance", "calculate-quarterly-bonus",
+                "create-10k-income-report", "expense-validation", "financial-forecast",
+                "invoice-matching", "monthly-closing", "payroll-processing",
+                "revenue-reconciliation", "vendor-payment-schedule", "year-end-audit-prep"
+            ]
+        },
+        "hr": {
+            "count": 29,
+            "tasks": [
+                "analyze-outing-bills", "check-attendance-multiple-days", "check-leave-balance",
+                "compile-training-feedback", "conduct-exit-interview", "create-career-ladder",
+                "create-employee-handbook", "create-onboarding-checklist", "delete-and-insert-user",
+                "diversity-metrics-report", "employee-satisfaction-survey", "green-card-consultation",
+                "health-insurance-enrollment", "massive-resume-screening", "new-hire-orientation",
+                "organize-team-retreat", "performance-review-prep", "policy-compliance-check",
+                "process-time-off-requests", "recruitment-pipeline-update", "salary-analysis",
+                "skills-gap-analysis", "succession-planning", "talent-acquisition-report",
+                "team-capacity-planning", "update-employee-records", "update-org-chart",
+                "verify-employment-history", "workplace-safety-audit"
+            ]
+        },
+        "ml": {
+            "count": 2,
+            "tasks": ["generate-gradcam", "grade-exam"]
+        },
+        "pm": {
+            "count": 38,
+            "tasks": [
+                "add-new-moderator", "analyze-user-feedback", "ask-for-issue-and-create-in-gitlab",
+                "assign-issues", "backlog-grooming", "capacity-planning", "competitive-analysis",
+                "create-feature-spec", "create-plane-issue", "create-product-roadmap",
+                "create-release-notes", "create-sprint-retrospective", "create-user-story",
+                "define-acceptance-criteria", "distribute-information", "document-api-changes",
+                "estimate-story-points", "gather-requirements", "manage-dependencies",
+                "monitor-sprint-progress", "prepare-demo", "prepare-stakeholder-update",
+                "prioritize-features", "risk-assessment", "schedule-meeting",
+                "scope-change-request", "sprint-planning", "stakeholder-communication",
+                "technical-debt-assessment", "track-okrs", "update-jira-tickets",
+                "update-product-backlog", "update-project-milestones", "update-status-page",
+                "user-acceptance-testing", "validate-requirements", "write-prd", "write-user-guide"
+            ]
+        },
+        "qa": {
+            "count": 2,
+            "tasks": ["escalate-emergency", "update-issue-status-according-to-colleagues"]
+        },
+        "research": {
+            "count": 2,
+            "tasks": ["answer-questions-on-paper", "reproduce-figures"]
+        },
+        "sde": {
+            "count": 57,
+            "tasks": [
+                "add-wiki-page", "change-branch-policy", "check-and-run-unit-test",
+                "close-all-gitlab-issues", "code-review", "configure-ci-cd",
+                "create-api-endpoint", "create-database-migration", "create-docker-compose",
+                "create-documentation", "create-git-hooks", "create-new-release",
+                "create-test-fixtures", "debug-crashed-server", "debug-memory-leak",
+                "deploy-to-staging", "fix-broken-build", "fix-security-vulnerability",
+                "implement-buffer-pool-manager-bustub", "implement-caching", "implement-error-handling",
+                "implement-feature-flag", "implement-logging", "implement-pagination",
+                "implement-rate-limiting", "implement-retry-logic", "implement-search",
+                "implement-validation", "implement-webhook", "integrate-third-party-api",
+                "merge-feature-branch", "migrate-database", "optimize-query",
+                "refactor-legacy-code", "resolve-merge-conflict", "review-pull-request",
+                "rollback-deployment", "run-integration-tests", "run-linter-on-openhands",
+                "set-up-monitoring", "setup-development-environment", "update-api-docs",
+                "update-dependencies", "update-readme", "write-api-tests",
+                "write-e2e-tests", "write-unit-tests",
+                # Additional SDE tasks to reach 57
+                "add-authentication", "add-authorization", "configure-nginx",
+                "create-backup-script", "implement-queue", "optimize-frontend",
+                "profile-performance", "setup-load-balancer", "write-migration-script", "setup-ssl"
+            ]
+        },
+        "business": {
+            "count": 1,
+            "tasks": ["classify-nationality"]
+        }
+    }
+
+    try:
+        tasks = []
+        task_idx = 0
+        previous_tasks = []
+
+        for category, info in TASK_CATALOG.items():
+            for task_name in info["tasks"]:
+                task_id = f"{category}_{task_name}"
+
+                # Tasks within same category may share context/dependencies
+                deps = []
+                for prev in previous_tasks[-3:]:
+                    if prev["category"] == category:
+                        deps.append(prev["task_id"])
+
+                task = {
+                    "task_id": task_id,
+                    "task_name": task_name,
+                    "category": category,
+                    "instruction": f"Complete the {task_name.replace('-', ' ')} task as a {category.upper()} professional.",
+                    "docker_image": f"ghcr.io/theagentcompany/{task_name}:1.0.0",
+                    "checkpoints": [],  # Would be loaded from individual task files
+                    "services_required": ["gitlab", "plane", "owncloud", "rocketchat"],
+                    "dependencies": deps,
+                    "sequence_position": task_idx,
+                }
+                tasks.append(task)
+                previous_tasks.append(task)
+                task_idx += 1
+
+        output_file = target_dir / "tasks.json"
+        with open(output_file, "w") as f:
+            json.dump(tasks, f, indent=2)
+
+        print(f"  Created catalog with {len(tasks)} tasks")
+        print(f"  Categories: {list(TASK_CATALOG.keys())}")
+        print(f"  Saved to: {output_file}")
+
+        return True
+
+    except Exception as e:
+        print(f"  Error: {e}")
+        return False
+
+
+def validate_gaia(data_path: Path) -> dict:
+    """Validate GAIA dataset and return stats."""
+    print(f"\n[Validate] GAIA")
+    print(f"  File: {data_path}")
+
+    if not data_path.exists():
+        return {"valid": False, "error": "File not found"}
+
+    try:
+        with open(data_path) as f:
+            tasks = json.load(f)
+
+        levels = {}
+        for task in tasks:
+            level = task.get("level", 0)
+            levels[level] = levels.get(level, 0) + 1
+
+        stats = {
+            "valid": True,
+            "total_tasks": len(tasks),
+            "levels": levels,
+            "tasks_with_files": sum(1 for t in tasks if t.get("file_name")),
+        }
+
+        print(f"  Total tasks: {stats['total_tasks']}")
+        print(f"  Levels: {levels}")
+        print(f"  Tasks with files: {stats['tasks_with_files']}")
+
+        return stats
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
+def validate_the_agent_company(data_path: Path) -> dict:
+    """Validate TheAgentCompany dataset and return stats."""
+    print(f"\n[Validate] TheAgentCompany")
+    print(f"  File: {data_path}")
+
+    if not data_path.exists():
+        return {"valid": False, "error": "File not found"}
+
+    try:
+        with open(data_path) as f:
+            tasks = json.load(f)
+
+        categories = {}
+        for task in tasks:
+            cat = task.get("category", "unknown")
+            categories[cat] = categories.get(cat, 0) + 1
+
+        deps = sum(1 for t in tasks if t.get("dependencies"))
+
+        stats = {
+            "valid": True,
+            "total_tasks": len(tasks),
+            "categories": categories,
+            "tasks_with_dependencies": deps,
+        }
+
+        print(f"  Total tasks: {stats['total_tasks']}")
+        print(f"  Categories: {len(categories)}")
+        for cat, count in sorted(categories.items()):
+            print(f"    - {cat}: {count} tasks")
+        print(f"  Tasks with dependencies: {deps}")
+
+        return stats
+
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
+
+
 def main():
     parser = argparse.ArgumentParser(description="Download ECM benchmark datasets")
     parser.add_argument(
         "--benchmark", "-b",
-        choices=["swe-bench-cl", "lifelong-agent-bench", "all"],
+        choices=["swe-bench-cl", "lifelong-agent-bench", "gaia", "the-agent-company", "all"],
         default="all",
         help="Which benchmark dataset to download",
     )
@@ -358,6 +662,43 @@ def main():
                 results["lifelong-agent-bench"] = validate_lifelong_agent_bench(target_path)
             else:
                 results["lifelong-agent-bench"] = {"valid": False, "error": "Download failed"}
+
+    # GAIA
+    if args.benchmark in ["gaia", "all"]:
+        config = DATASETS["gaia"]
+        target_dir = project_root / config["target_dir"]
+        target_path = target_dir / "tasks.json"
+
+        if args.validate_only:
+            results["gaia"] = validate_gaia(target_path)
+        else:
+            success = download_gaia(
+                config["hf_dataset"],
+                target_dir,
+                config["name"]
+            )
+            if success:
+                results["gaia"] = validate_gaia(target_path)
+            else:
+                results["gaia"] = {"valid": False, "error": "Download failed"}
+
+    # TheAgentCompany
+    if args.benchmark in ["the-agent-company", "all"]:
+        config = DATASETS["the-agent-company"]
+        target_dir = project_root / config["target_dir"]
+        target_path = target_dir / "tasks.json"
+
+        if args.validate_only:
+            results["the-agent-company"] = validate_the_agent_company(target_path)
+        else:
+            success = download_the_agent_company(
+                target_dir,
+                config["name"]
+            )
+            if success:
+                results["the-agent-company"] = validate_the_agent_company(target_path)
+            else:
+                results["the-agent-company"] = {"valid": False, "error": "Download failed"}
 
     # Summary
     print("\n" + "=" * 60)

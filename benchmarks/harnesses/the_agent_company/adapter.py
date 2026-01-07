@@ -154,8 +154,10 @@ class TheAgentCompanyHarness(OfficialHarness):
     - ownCloud for file storage
     - RocketChat for team communication
 
-    Tasks span 6 professional roles and require multi-step reasoning
+    Tasks span 10 professional roles and require multi-step reasoning
     with checkpoint-based evaluation for partial credit.
+
+    Roles: admin, data-science, finance, hr, ml, pm, qa, research, sde, business
     """
 
     def __init__(self, server_hostname: Optional[str] = None, data_dir: Optional[str] = None):
@@ -175,6 +177,7 @@ class TheAgentCompanyHarness(OfficialHarness):
         self._docker_available: bool = False
         self._current_task: Optional[str] = None
         self._company_state: dict = {}  # Persistent state across tasks
+        self._tasks: list[dict] = []  # Loaded from tasks.json
 
     @property
     def name(self) -> str:
@@ -189,9 +192,23 @@ class TheAgentCompanyHarness(OfficialHarness):
         Setup harness environment.
 
         Checks:
-        1. Docker is available
-        2. Required services are running (GitLab, Plane, ownCloud, RocketChat)
+        1. Load task data from tasks.json
+        2. Docker is available
+        3. Required services are running (GitLab, Plane, ownCloud, RocketChat)
         """
+        # Load tasks from data file
+        tasks_file = self.data_dir / "tasks.json"
+        if tasks_file.exists():
+            import json
+            with open(tasks_file) as f:
+                self._tasks = json.load(f)
+            print(f"[TheAgentCompany] Loaded {len(self._tasks)} tasks from {tasks_file}")
+        else:
+            print(f"[TheAgentCompany] No tasks.json found, using built-in catalog")
+            print(f"[TheAgentCompany] Run: uv run benchmarks/scripts/download_datasets.py --benchmark the-agent-company")
+            # Fall back to built-in catalog
+            self._tasks = self._generate_tasks_from_catalog()
+
         # Check Docker
         try:
             result = subprocess.run(
@@ -205,27 +222,55 @@ class TheAgentCompanyHarness(OfficialHarness):
             self._docker_available = False
 
         if not self._docker_available:
-            print("[TheAgentCompany] Docker not available")
-            print("[TheAgentCompany] Run: curl -fsSL https://github.com/TheAgentCompany/the-agent-company-backup-data/releases/download/setup-script-20241208/setup.sh | sh")
-            # Continue in simulation mode
+            print("[TheAgentCompany] Docker not available - using simulation mode")
 
         # Check services (in real setup, would ping each service)
         services = ["gitlab", "plane", "owncloud", "rocketchat"]
         for service in services:
-            # In simulation mode, mark all as available
             self._services_available[service] = True
-            if self._docker_available:
-                # Would actually check: docker compose ps | grep service
-                pass
 
         print(f"[TheAgentCompany] Setup complete. Docker: {self._docker_available}")
-        print(f"[TheAgentCompany] Services: {self._services_available}")
 
         return True
 
+    def _generate_tasks_from_catalog(self) -> list[dict]:
+        """Generate tasks from built-in TASK_CATALOG."""
+        tasks = []
+        task_idx = 0
+        previous_tasks = []
+
+        for role, role_tasks in TASK_CATALOG.items():
+            for task_data in role_tasks:
+                task_id = task_data.get("task_id", f"{role}_{task_idx}")
+
+                # Tasks within same role may share context
+                deps = []
+                for prev in previous_tasks[-3:]:
+                    if prev.get("role") == task_data.get("role"):
+                        deps.append(prev["task_id"])
+
+                task = {
+                    "task_id": task_id,
+                    "task_name": task_id,
+                    "category": role,
+                    "instruction": task_data.get("instruction", ""),
+                    "checkpoints": task_data.get("checkpoints", []),
+                    "services_required": task_data.get("services_required", []),
+                    "dependencies": deps,
+                    "sequence_position": task_idx,
+                }
+                tasks.append(task)
+                previous_tasks.append(task)
+                task_idx += 1
+
+        return tasks
+
     def get_sequence_ids(self) -> list[str]:
-        """Get available task roles/categories."""
-        return list(TASK_CATALOG.keys())
+        """Get available task categories."""
+        categories = set()
+        for task in self._tasks:
+            categories.add(task.get("category", "unknown"))
+        return sorted(categories) if categories else list(TASK_CATALOG.keys())
 
     def load_tasks(self, config: dict) -> Iterator[HarnessTask]:
         """
@@ -233,51 +278,38 @@ class TheAgentCompanyHarness(OfficialHarness):
 
         Args:
             config: dict with keys:
-                - role: str - Filter by role (swe, pm, data_scientist, hr, finance, admin)
+                - role: str - Filter by category/role
                 - max_tasks: int - Maximum tasks to load
-                - include_dependencies: bool - Include dependent tasks in sequence
         """
         role_filter = config.get("role", None)
         max_tasks = config.get("max_tasks", 999)
 
-        tasks_loaded = 0
-        previous_task_ids = []
-
-        # Determine which roles to include
+        # Filter tasks by role if specified
         if role_filter:
-            roles = [role_filter] if role_filter in TASK_CATALOG else list(TASK_CATALOG.keys())
+            filtered_tasks = [t for t in self._tasks if t.get("category") == role_filter]
         else:
-            roles = list(TASK_CATALOG.keys())
+            filtered_tasks = self._tasks
 
-        for role in roles:
-            if tasks_loaded >= max_tasks:
-                break
+        # Limit to max_tasks
+        filtered_tasks = filtered_tasks[:max_tasks]
 
-            for task_data in TASK_CATALOG.get(role, []):
-                if tasks_loaded >= max_tasks:
-                    break
-
-                # In TheAgentCompany, tasks within a session share company state
-                # This creates implicit dependencies
-                dependencies = previous_task_ids.copy()
-
-                yield HarnessTask(
-                    task_id=task_data["task_id"],
-                    task_type="long_horizon",
-                    instruction=task_data["instruction"],
-                    metadata={
-                        "role": task_data["role"],
-                        "category": task_data["category"],
-                        "checkpoints": task_data.get("checkpoints", []),
-                        "services_required": task_data.get("services_required", []),
-                        "sequence_position": tasks_loaded,
-                    },
-                    dependencies=dependencies,
-                    difficulty=self._estimate_difficulty(task_data),
-                )
-
-                previous_task_ids.append(task_data["task_id"])
-                tasks_loaded += 1
+        for i, task_data in enumerate(filtered_tasks):
+            yield HarnessTask(
+                task_id=task_data.get("task_id", f"task_{i}"),
+                task_type="long_horizon",
+                instruction=task_data.get("instruction", ""),
+                metadata={
+                    "role": task_data.get("category", "unknown"),
+                    "category": task_data.get("category", "unknown"),
+                    "task_name": task_data.get("task_name", ""),
+                    "checkpoints": task_data.get("checkpoints", []),
+                    "services_required": task_data.get("services_required", []),
+                    "sequence_position": task_data.get("sequence_position", i),
+                    "docker_image": task_data.get("docker_image", ""),
+                },
+                dependencies=task_data.get("dependencies", []),
+                difficulty=self._estimate_difficulty(task_data),
+            )
 
     def _estimate_difficulty(self, task_data: dict) -> str:
         """Estimate task difficulty based on checkpoints and services."""

@@ -48,6 +48,13 @@ AVAILABLE_HARNESSES = {
         "type": "long_horizon",
         "requires": ["docker"],
     },
+    "gaia": {
+        "module": "benchmarks.harnesses.gaia",
+        "class": "GAIAHarness",
+        "description": "GAIA - General AI assistants benchmark with multi-step reasoning",
+        "type": "long_horizon",
+        "requires": ["huggingface"],
+    },
 }
 
 
