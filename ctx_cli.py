@@ -87,22 +87,34 @@ def _execute_single_command(store: ContextStore, command: str) -> tuple[str, Eve
     if action == "scope":
         name = tokens[1] if len(tokens) > 1 else None
         m = ""
-        if "-m" in tokens: m = tokens[tokens.index("-m") + 1]
+        if "-m" in tokens:
+            idx = tokens.index("-m")
+            if idx + 1 < len(tokens):
+                m = tokens[idx + 1]
         return store.checkout(name, m, create=True)
 
     if action == "return":
         m = ""
-        if "-m" in tokens: m = tokens[tokens.index("-m") + 1]
+        if "-m" in tokens:
+            idx = tokens.index("-m")
+            if idx + 1 < len(tokens):
+                m = tokens[idx + 1]
         return store.return_to_main(m)
 
     if action == "note":
         m = ""
-        if "-m" in tokens: m = tokens[tokens.index("-m") + 1]
+        if "-m" in tokens:
+            idx = tokens.index("-m")
+            if idx + 1 < len(tokens):
+                m = tokens[idx + 1]
         return store.note(m)
 
     if action == "insight":
         m = ""
-        if "-m" in tokens: m = tokens[tokens.index("-m") + 1]
+        if "-m" in tokens:
+            idx = tokens.index("-m")
+            if idx + 1 < len(tokens):
+                m = tokens[idx + 1]
         return store.insight(m)
 
     if action == "insights":

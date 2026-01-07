@@ -96,9 +96,60 @@ def test_git_date_format_precision():
     store = ContextStore()
     store.note("test")
     output = store.get_all_notes()
-    
+
     # Example: Fri Jan 02 14:30:00 2026 -0300
     # We check for the presence of the GMT offset (the 4 digits at the end)
     import re
     # Matches +0000 or -0300 etc at the end of the date line
     assert re.search(r"Date:   \w{3} \w{3} \d{2} \d{2}:\d{2}:\d{2} \d{4} [+-]\d{4}", output)
+
+
+class TestCommandParsing:
+    """Test command parsing edge cases to prevent regressions."""
+
+    def test_missing_message_flag_value(self):
+        """Test that -m flag without value doesn't cause IndexError."""
+        store = ContextStore()
+
+        # Commands with -m at the end but no value should handle gracefully
+        result, _ = execute_command(store, "note -m")
+        # Should not crash, should handle empty message
+        assert result is not None
+
+        result, _ = execute_command(store, "insight -m")
+        assert result is not None
+
+    def test_scope_with_empty_message(self):
+        """Test scope creation with -m flag but empty message."""
+        store = ContextStore()
+
+        # Should handle empty message gracefully
+        result, _ = execute_command(store, "scope test/scope -m")
+        assert result is not None
+        # Even with empty message, scope should be created
+        assert "test/scope" in store.branches
+
+    def test_return_with_empty_message(self):
+        """Test return with -m flag but empty message."""
+        store = ContextStore()
+
+        # First create a scope
+        execute_command(store, 'scope test/scope -m "test"')
+
+        # Then return with empty message
+        result, _ = execute_command(store, "return -m")
+        assert result is not None
+        # Should have returned to main
+        assert store.current_branch == "main"
+
+    def test_command_with_message_containing_spaces(self):
+        """Test that messages with spaces are parsed correctly."""
+        store = ContextStore()
+
+        # Message with spaces should work
+        result, _ = execute_command(store, 'note -m "This is a test message"')
+        assert "Note recorded" in result
+
+        # Verify the note was saved with full message
+        notes_output, _ = execute_command(store, "notes")
+        assert "This is a test message" in notes_output
