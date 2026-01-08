@@ -46,13 +46,19 @@ class HarnessResult:
     agent_output: str
     execution_log: list[str] = field(default_factory=list)
 
-    # Metrics collected during execution
+    # Legacy metrics (includes system prompt)
     input_tokens: int = 0
     output_tokens: int = 0
     api_calls: int = 0
     execution_time_seconds: float = 0.0
     context_at_start: int = 0
     context_at_end: int = 0
+
+    # Working context metrics (excludes system prompt - the real metrics)
+    prompt_tokens_start: int = 0     # Working context at START of task
+    prompt_tokens: int = 0           # Working context at END of task
+    peak_prompt_tokens: int = 0      # Maximum working context during task
+    completion_tokens: int = 0       # Output tokens
 
     # Harness-specific results
     tests_passed: int = 0
@@ -323,10 +329,17 @@ class HarnessAdapter:
             record = TaskTokenRecord(
                 task_id=task.task_id,
                 task_name=f"{config.get('sequence', 'default')}:{task.task_id}",
-                input_tokens=result["input_tokens"],
-                output_tokens=result["output_tokens"],
+                # Legacy metrics (includes system prompt)
+                input_tokens=result.get("input_tokens", 0),
+                output_tokens=result.get("output_tokens", 0),
                 context_at_start=result.get("context_at_start", 0),
                 context_at_end=result.get("context_at_end", 0),
+                # Working context metrics (excludes system prompt)
+                prompt_tokens_start=result.get("prompt_tokens_start", 0),
+                prompt_tokens=result.get("prompt_tokens", 0),
+                peak_prompt_tokens=result.get("peak_prompt_tokens", 0),
+                completion_tokens=result.get("completion_tokens", result.get("output_tokens", 0)),
+                # Performance
                 api_calls=result.get("api_calls", 1),
                 execution_time_seconds=result.get("latency", 0.0),
                 success=success,

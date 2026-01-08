@@ -413,6 +413,7 @@ Only save what's genuinely useful. The tool helps you maintain memory across int
             system_prompt: Optional custom system prompt (uses default if None)
         """
         import time
+        from benchmarks.core.metrics import count_working_tokens, count_context_tokens
 
         # Ensure correct scope
         scope_name = f"context_{context_id}"
@@ -428,6 +429,11 @@ Only save what's genuinely useful. The tool helps you maintain memory across int
         # The scope IS the working context - cleanup happens via `goto main`
         messages = self.store.get_context(system)
         messages.append({"role": "user", "content": question})
+
+        # Count working context at START (excludes system prompt)
+        prompt_tokens_start = count_working_tokens(messages, self.model)
+        context_at_start = count_context_tokens(messages, self.model)
+        peak_prompt = prompt_tokens_start
 
         start_time = time.time()
 
@@ -459,11 +465,27 @@ Only save what's genuinely useful. The tool helps you maintain memory across int
         from ctx_store import Message
         self.store.add_message(Message(role="assistant", content=message.content or ""))
 
+        # Count working context at END (after adding assistant message)
+        messages_end = self.store.get_context(system)
+        prompt_tokens_end = count_working_tokens(messages_end, self.model)
+        context_at_end = count_context_tokens(messages_end, self.model)
+        peak_prompt = max(peak_prompt, prompt_tokens_end)
+
         return {
             "answer": message.content or "",
+            # Legacy metrics (includes system prompt)
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "context_at_start": context_at_start,
+            "context_at_end": context_at_end,
+            # Working context metrics (excludes system prompt)
+            "prompt_tokens_start": prompt_tokens_start,
+            "prompt_tokens": prompt_tokens_end,
+            "peak_prompt_tokens": peak_prompt,
+            "completion_tokens": output_tokens,
+            # Performance
             "latency": latency,
+            "api_calls": 1,
             "tool_calls": tool_calls_captured,
             "ctx_cli_commands": [tc["command"] for tc in tool_calls_captured],
         }

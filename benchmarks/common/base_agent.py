@@ -151,8 +151,14 @@ class BaseAgent(ABC):
             max_tokens: Maximum tokens to generate
 
         Returns:
-            dict with answer, input_tokens, output_tokens, latency
+            dict with answer, tokens, latency, and working context metrics
         """
+        from benchmarks.core.metrics import count_working_tokens, count_context_tokens
+
+        # Count working context at START (excludes system prompt)
+        prompt_tokens_start = count_working_tokens(messages, self.model)
+        context_at_start = count_context_tokens(messages, self.model)
+
         start_time = time.time()
 
         response = self.client.chat.completions.create(
@@ -170,9 +176,23 @@ class BaseAgent(ABC):
         self.total_input_tokens += input_tokens
         self.total_output_tokens += output_tokens
 
+        # For base agents, context at end = start + output (no cleanup mechanism)
+        prompt_tokens_end = prompt_tokens_start + output_tokens
+        context_at_end = context_at_start + output_tokens
+
         return {
             "answer": response.choices[0].message.content,
+            # Legacy metrics (includes system prompt)
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
+            "context_at_start": context_at_start,
+            "context_at_end": context_at_end,
+            # Working context metrics (excludes system prompt)
+            "prompt_tokens_start": prompt_tokens_start,
+            "prompt_tokens": prompt_tokens_end,
+            "peak_prompt_tokens": prompt_tokens_end,  # For linear, peak = end
+            "completion_tokens": output_tokens,
+            # Performance
             "latency": latency,
+            "api_calls": 1,
         }
