@@ -41,6 +41,18 @@ The research community has proposed diverse solutions to context limitations, ea
 
 **Agentic memory** systems like Mem0 [16] and A-MEM [17] actively manage memory through extraction, linking, and consolidation. These systems achieve impressive results but require sophisticated infrastructure including vector databases and graph stores.
 
+Table 1 summarizes how SPACE compares to these approaches:
+
+**Table 1: Comparison of Context Management Approaches**
+
+| Approach | Training | Navigation | Semantic Memory | Model Portable |
+|----------|----------|------------|-----------------|----------------|
+| MemGPT [13] | None | Linear | External DB | Yes |
+| Context-Folding [2] | RL | Stack (LIFO) | No | No |
+| AgentFold [1] | SFT | Linear | No | No |
+| CaT [28] | SFT (20K) | Linear | No | No |
+| **SPACE (Ours)** | **None** | **Radial** | **Yes (insights)** | **Yes** |
+
 What these approaches share is a commitment to **implicit** context management—policies learned through training or derived from task structure. The agent does not explicitly decide what to remember; this is determined by algorithms operating on the context.
 
 ## 1.5 SPACE: Self-Partitioned Agent Context Environment
@@ -49,21 +61,21 @@ We propose a fundamentally different approach: give agents **explicit control** 
 
 Our insight is that conversation context can be treated as **versioned state**, analogous to version control systems for code. Just as developers create branches to isolate work and commits to checkpoint progress, agents can create scopes to isolate reasoning and notes to preserve learnings.
 
-This leads to a minimal interface organized around three operations: **navigation** (scope, goto), **persistence** (note, insight), and **inspection** (notes, insights, status, scopes).
+This leads to a minimal interface organized around three operations: **navigation** (`scope`, `return`), **persistence** (`note`, `insight`), and **inspection** (`notes`, `insights`, `status`).
 
 | Command | Semantics | Memory Tier |
 |---------|-----------|-------------|
 | `scope <name> -m "..."` | Create and enter new context | Working |
-| `goto <name> -m "..."` | Navigate to existing context | Working |
+| `return -m "..."` | Finalize scope and return to main | Working |
 | `note -m "..."` | Record scope-local event | Episodic |
 | `insight -m "..."` | Record global knowledge | Semantic |
 | `notes` / `insights` | Retrieve memories | — |
 | `status` / `scopes` | Inspect current state | Meta |
 
-The key mechanism is **scope isolation**. Messages are partitioned into scopes, and only messages from the current scope are visible to the model during API calls. Scopes form a **graph structure** where the agent can navigate freely via `goto`—unlike stack-based approaches (Context-Folding) that enforce LIFO ordering.
+The key mechanism is **scope isolation with radial navigation**. Messages are partitioned into scopes, and only messages from the current scope are visible to the model during API calls. SPACE implements a **hub-and-spoke topology**: the `main` context serves as a stable hub, while temporary scopes branch off for specific subtasks and must return with summarized conclusions. This enforces cognitive discipline—agents cannot drift between arbitrary contexts but must consolidate their reasoning before switching tasks.
 
 This design creates a **three-tier memory system** without external infrastructure:
-- **Working memory**: Messages in the current scope (ephemeral, cleared on scope change).
+- **Working memory**: Messages in the current scope (ephemeral, cleared on return).
 - **Episodic memory**: Notes local to each scope (persistent, queryable via `notes`).
 - **Semantic memory**: Insights global across all scopes (persistent, queryable via `insights`).
 
@@ -71,19 +83,19 @@ This design creates a **three-tier memory system** without external infrastructu
 
 This paper makes the following contributions:
 
-1. **SPACE: A minimal, training-free command interface for self-partitioned context management.** We demonstrate that a small set of commands (navigation, persistence, inspection) suffices for effective context control, requiring no model fine-tuning, reinforcement learning, or external infrastructure—unlike Context-Folding [2], AgentFold [1], and CaT [28].
+1. **SPACE: A minimal, training-free architecture for self-partitioned context management.** We demonstrate that a small set of commands (navigation, persistence, inspection) suffices for effective context control, requiring no model fine-tuning, reinforcement learning, or external infrastructure—unlike Context-Folding [2], AgentFold [1], and CaT [28].
 
-2. **Graph-based scope navigation.** Unlike stack-based approaches (Context-Folding's `branch/return`) that enforce LIFO ordering, SPACE's `scope/goto` implements graph-based navigation where agents can freely traverse between any existing scopes. This enables non-linear exploration patterns essential for comparing alternatives.
+2. **Radial scope navigation (hub-and-spoke).** Unlike stack-based approaches (Context-Folding's `branch/return`) that enforce LIFO ordering, SPACE implements radial navigation where agents branch from a stable `main` context and must return with consolidated summaries. This enforces cognitive discipline while preventing arbitrary context drift.
 
 3. **Three-tier memory architecture.** We introduce a memory system differentiating working memory (ephemeral messages), episodic memory (scope-local notes), and semantic memory (global insights). The semantic tier enables knowledge transfer patterns impossible with pure compression approaches.
 
-4. **Asymmetric note placement semantics.** We introduce a novel transition protocol where "departure notes" stay in the origin scope and "arrival notes" go to the destination scope. This preserves the causal narrative of the agent's journey across disjoint memory spaces.
+4. **Cognitive commit semantics.** The `return` command forces explicit summarization before context switch, preventing rumination on failed attempts. This transforms context management into active attention control.
 
-5. **Empirical validation of token economics.** We demonstrate **88% reduction in peak context** (12,059 → 1,402 tokens) and **34% faster execution** on sequential coding tasks from SWE-Bench-CL [30], comparable to learned approaches but without training overhead.
+5. **Preliminary empirical validation.** Initial experiments on sequential coding tasks from SWE-Bench-CL [30] show **~88% reduction in peak context** and **~34% faster execution**, suggesting performance comparable to learned approaches but without training overhead. Full evaluation is ongoing.
 
-6. **An open-source, model-agnostic implementation** that integrates with any tool-use capable model and includes robust handling of API-specific constraints.
+6. **An open-source, model-agnostic implementation** that integrates with any tool-use capable model using standard function calling interfaces.
 
-Our approach occupies a distinct position in the design space: simpler than learned compression, more flexible than stack-based decomposition, and more transparent than agentic memory systems. The tradeoff is explicit dependence on agent compliance—the model must correctly use the commands. We view this as acceptable for applications where interpretability, portability, and simplicity are valued alongside performance.
+Our approach occupies a distinct position in the design space: simpler than learned compression, more structured than stack-based decomposition, and more transparent than agentic memory systems. The tradeoff is explicit dependence on agent compliance—the model must correctly use the commands. We view this as acceptable for applications where interpretability, portability, and simplicity are valued alongside performance.
 
 ## 1.7 Paper Organization
 

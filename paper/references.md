@@ -69,3 +69,5 @@
 [40] Brown, T., et al. (2020). Language Models are Few-Shot Learners. *NeurIPS*.
 
 [41] Snell, C., et al. (2024). Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters. *arXiv*.
+
+[42] OpenAI. (2025). Introducing GPT-4.1 in the API. *OpenAI Blog*. https://openai.com/index/gpt-4-1/

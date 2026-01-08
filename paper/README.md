@@ -1,10 +1,10 @@
-# Explicit Context Management for Long-Running Language Agents
+# SPACE: Self-Partitioned Agent Context Environment for Long-Horizon Agents
 
 **Paper Draft** - Academic submission for conference publication
 
 ## Abstract
 
-This paper presents explicit context management, a lightweight approach to handling context window limits in long-running language model agents. Through scope isolation and episodic notes, we achieve 88% reduction in peak context and 34% faster execution on sequential tasks.
+This paper presents SPACE, a training-free architecture that enables LLM agents to manage their own working memory through explicit commands. Through scope isolation and cognitive commit semantics, we achieve ~88% reduction in peak context and ~34% faster execution on sequential tasks (preliminary results).
 
 ## Paper Structure
 
@@ -14,30 +14,28 @@ The paper is organized into modular sections (10 pages total):
 paper/
 ├── 00-abstract.md           250 words - Problem, solution, results
 ├── 01-introduction.md       1.5 pages - Motivation and contributions
-├── 02-related-work.md       1.5 pages - Comparison with 4 key papers
+├── 02-related-work.md       1.5 pages - Comparison with key papers
 ├── 03-method.md             2.5 pages - Architecture and implementation
 ├── 04-experiments.md        1.0 pages - Experimental setup
-├── 05-results.md            1.5 pages - Quantitative results
+├── 05-results.md            1.5 pages - Quantitative results (preliminary)
 ├── 06-discussion.md         1.0 pages - Analysis and limitations
 ├── 07-conclusion.md         0.5 pages - Contributions and future work
 ├── references.md            Bibliography (24 papers)
 └── figures/                 Visualizations and diagrams
 ```
 
-## Key Results
+## Key Results (Preliminary)
 
 ### Sequential Tasks (SWE-Bench-CL)
-- **88% peak context reduction**: 12,059 → 1,402 tokens
-- **34% faster execution**: 121.5s → 80.5s
+- **~88% peak context reduction**: 12,059 → 1,402 tokens
+- **~34% faster execution**: 121.5s → 80.5s
 - **Bounded growth**: O(1) vs O(n) for linear approach
 
-### Isolated Tasks (SWE-Bench Lite)
-- **LINEAR more efficient**: 2.7x faster (18.6s vs 50.3s)
-- Both approaches generated correct patches
-- Reveals trade-off: SCOPE for sequential, LINEAR for isolated
+### Note on Results
+Results presented are from pilot runs. Full evaluation with official benchmark harnesses is ongoing.
 
 ### Critical Insight
-**Explicit context management provides value when context accumulates across multiple related steps.**
+**SPACE provides value when context accumulates across multiple related steps.**
 
 ## Compilation
 

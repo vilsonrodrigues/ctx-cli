@@ -1,132 +1,108 @@
 # 6. Discussion
 
-We discuss why explicit context management works, its limitations, design decisions, and implications for agent development.
+We discuss why SPACE works, its limitations, and key design decisions.
 
 ## 6.1 Why It Works
 
-The effectiveness of scope-based context management stems from mechanisms that align the agent's environment with its cognitive needs:
+### 6.1.1 Anti-Rumination Mechanism
 
-### 6.1.1 Anti-Rumination and Attention Control
+A primary discovery was the ~97% context reset achieved by SPACE. In linear contexts, past errors and failed attempts remain visible, acting as "attractors" that pull the model back into incorrect reasoning paths. By enforcing a hard reset via `return`, SPACE physically removes these distractors—the agent cannot ruminate on past failures because they no longer exist in its perceptual field. Only the lessons learned (notes) remain.
 
-A primary discovery in Task 4 was the 97% context reset achieved by SPACE. While the linear agent carried the full burden of its exploration into subsequent tasks, the SPACE agent successfully offloaded its working memory to notes. This acts as an **anti-rumination mechanism**.
+This transforms context management into **active attention control**, ensuring the model's limited attention capacity is focused on the current sub-problem.
 
-In linear contexts, past errors and failed attempts remain visible, acting as "attractors" that pull the model back into incorrect reasoning paths. By enforcing a hard reset via `return`, SPACE physically removes these distractors. The agent cannot ruminate on past failures because they no longer exist in its perceptual field—only the lessons learned (notes) remain. This transforms context management into **active attention control**, ensuring the model's limited attention head capacity is focused exclusively on the current sub-problem.
+### 6.1.2 Cognitive Semantics Alignment
 
-### 6.1.2 Qualitative Analysis of Note-Taking Behavior
+Early iterations suffered from instability where agents would "get lost" in scopes. Stabilization came from aligning three semantic layers:
+1. **Prompt Semantics:** Instructions describing the mental model
+2. **CLI Semantics:** Hard constraints of the tool interface (e.g., `scope` only from main)
+3. **Cognitive Semantics:** The model's actual reasoning process
 
-Observation of the agent's logs revealed that the model utilized the `note` and `return` commands not merely as protocol overhead, but as a technical serialization layer. For instance, in the Django tasks, the agent consistently recorded file paths and specific method changes (e.g., "Implemented __iter__ in Paginator class") before clearing its working memory. While the current benchmark tasks were largely independent, this behavior suggests that SPACE successfully converts high-entropy conversational data into low-entropy structural knowledge, which is essential for long-term consistency in complex engineering projects.
+By enforcing strict state transitions in code that mirror the mental model described in the prompt, the agent no longer has to *pretend* to organize its memory—the environment *is* organized.
 
-### 6.1.3 Cognitive Semantics Alignment
-
-Early iterations of this system suffered from instability where the agent would "get lost" in scopes. The stabilization in v5 is attributed to the alignment of three semantic layers:
-1.  **Prompt Semantics:** The instructions describing the mental model.
-2.  **CLI Semantics:** The hard constraints of the tool interface (e.g., prohibiting `scope` from within a scope).
-3.  **Cognitive Semantics:** The actual reasoning process of the model.
-
-By enforcing strict state transitions in code (the CLI) that mirror the mental model described in the prompt, we reduce the "simulation gap." The agent no longer has to *pretend* to organize its memory; the environment *is* organized. This structural enforcement frees the model to focus on task solving rather than meta-cognitive maintenance.
-
-## 6.2 When Explicit Context Management Helps
-
-Our experiments across different benchmark types reveal when scope-based context management provides value versus when simpler approaches suffice.
-
-### 6.2.1 Sequential Tasks: High Value
-
-**SWE-Bench-CL** demonstrates ctx-cli's strength. For 15 sequential Django issue resolution tasks:
-
-- **88% peak context reduction** (12,059 → 1,402 tokens)
-- **34% faster execution** (121.5s → 80.5s)
-- **Bounded growth** (+543 tokens vs +11,812 linear growth)
-
-The key factor is **context accumulation**: each task builds on knowledge from previous tasks. LINEAR approach accumulates all message history, growing linearly with task count.
-
-### 6.2.2 The Critical Differentiator
+## 6.2 When SPACE Helps
 
 The key question: **"Will context accumulate across multiple related steps?"**
 
-- **Yes** (multi-turn debugging, code review series, project evolution) → Use SCOPE
+- **Yes** (multi-turn debugging, code review series, project evolution) → Use SPACE
 - **No** (single bug fix, isolated refactor, one-off task) → Use LINEAR
 
-This aligns with the design intent: explicit context management is for **long-running, multi-step tasks** where context growth becomes a bottleneck.
+For sequential tasks like SWE-Bench-CL (15 Django issues), SPACE achieves ~88% context reduction and ~34% faster execution because each task would otherwise accumulate all previous context.
 
-## 6.3 Comparison with Learned Compression
+## 6.3 Limitations
 
-Our results (88% context reduction) are comparable to learned approaches: Context-Folding achieves 10× reduction, AgentFold maintains ~7K tokens after 100 turns, and CaT achieves 70% compression. However, the mechanisms differ fundamentally:
+**Agent Compliance:** The approach requires models to correctly use commands. Prompt engineering mitigates but doesn't eliminate issues.
 
-| Approach | Training | Navigation | Semantic Memory | Model Portability |
-|----------|----------|------------|-----------------|-------------------|
-| Context-Folding | RL (FoldGRPO) | Stack | No | No (Seed-36B) |
-| AgentFold | SFT | Linear | No | No (Qwen-30B) |
-| CaT | SFT (20K samples) | Linear | No | No (Qwen-32B) |
-| **SPACE** | **None** | **Radial** | **Yes (insights)** | **Yes (any model)** |
+**Note Quality:** Low-quality notes ("done", "completed step") provide minimal value. The compression benefit assumes notes capture semantic meaning.
 
-SPACE trades potential compression efficiency for three properties learned approaches lack:
+**Scope Judgment:** Deciding when to create a new scope vs. continue in the current scope is a judgment call. Over-scoping fragments context; under-scoping loses isolation benefits.
 
-1. **Zero training overhead**: Deploy immediately with any tool-use capable model
-2. **Radial navigation**: Isolated exploration with forced consolidation
-3. **Semantic memory**: Insights provide global knowledge transfer unavailable in compression-only systems
+**No Learned Optimization:** Unlike Context-Folding and AgentFold, SPACE does not learn optimal compression points—a tradeoff for training-free deployment.
 
-## 6.4 Future Domains: OSWorld and Desktop Agents
+## 6.4 Design Decisions
 
-While this study focused on software engineering, SPACE is highly applicable to general-purpose desktop agents. Benchmarks like **OSWorld** [36], which require agents to perform long-horizon tasks across multiple applications (e.g., "find the invoice in emails, save it to Documents, and upload it to the accounting web portal"), suffer acutely from context saturation. A SPACE-enabled agent could dedicate a scope to `email-search`, collapse it into a note ("Invoice found at path X"), and then open a clean `web-portal` scope, preventing the noisy HTML of the web page from polluting the context needed for file navigation.
+**Why No Rewind?** An earlier version included `rewind`. We removed it: "rewriting the past is dangerous; it's better to take a note acknowledging the error."
 
-The three-tier memory system is particularly valuable here: an insight like "user prefers dark mode in all applications" persists globally, while notes like "invoice PDF saved to ~/Documents/invoices/" remain scope-local.
+**Why Separate Notes and Insights?** The episodic/semantic distinction mirrors human memory theory. Notes capture *what happened* (task-specific), insights capture *what was learned* (generalizable). An insight from debugging ("always check null before accessing .data") benefits all future tasks; notes about specific file changes remain scoped.
 
-## 6.5 Convergence with Recursive Architectures
+**Why Radial Instead of Graph?** Full graph navigation (arbitrary `goto`) introduces cognitive load and risks context drift. The hub-and-spoke model forces consolidation at `main`, maintaining coherence.
 
-The emergence of Recursive Language Models (RLM) [31] validates the paradigm of "context management via code execution." However, RLM relies on the model writing complex Python scripts to manage state, which introduces significant latency (synchronous blocking calls) and requires frontier-class models (>400B parameters) to function reliably. SPACE democratizes this capability by providing a high-level CLI abstraction. By shifting the complexity from *generation* (writing memory code) to *selection* (calling memory tools), SPACE achieves similar context isolation benefits with drastically lower latency (~1.5s vs RLM's multi-minute trajectories) and compatibility with smaller, faster models like `gpt-4o-mini`.
+## 6.5 Relationship to Context-Folding and CCA
 
-## 6.6 Limitations
+Context-Folding [2] and Confucius Code Agent [37] are the closest works to SPACE, each offering different solutions to the same problem.
 
-### 6.6.1 Depends on Agent Compliance
+### Context-Folding
 
-The approach requires the model to correctly use commands. Prompt engineering mitigates issues, but doesn't eliminate them. Future work could explore automatic note suggestion based on message patterns or policy-based enforcement.
+Context-Folding shares SPACE's fundamental insight that agents should actively manage their context. Both approaches:
+- Use a two-operation interface (`branch`/`return` vs. `scope`/`return`)
+- Separate planning (main thread) from execution (branches/scopes)
+- Achieve ~90% context compression on sequential tasks
+- Disable nested branching to prevent complexity explosion
 
-### 6.6.2 Note Quality Affects Value
+| Property | Context-Folding | SPACE |
+|----------|-----------------|-------|
+| Acquisition | Learned via RL | Architectural constraints |
+| Memory Model | Fold into summary | Three-tier (working/episodic/semantic) |
+| Portability | Single trained model | Any tool-use capable model |
 
-Low-quality notes ("done", "completed step") provide minimal value. The compression benefit assumes notes capture semantic meaning. We observed note quality correlates with prompt clarity—agents given explicit guidance on what to include in notes produced more useful summaries.
+**When to use each:** Context-Folding is superior when you can train a dedicated model. SPACE is preferable for immediate deployment across multiple models.
 
-### 6.6.3 Scope Boundaries Require Judgment
+### Confucius Code Agent
 
-Deciding when to create a new scope vs. continue in the current scope is a judgment call. Over-scoping fragments context unnecessarily; under-scoping loses isolation benefits.
+CCA [37] offers a complementary perspective with **implicit** context management:
 
-### 6.6.4 No Learned Optimization
+| Property | CCA | SPACE |
+|----------|-----|-------|
+| Compression | Automatic (Architect agent) | Explicit (`return -m`) |
+| Note-taking | Hindsight (after failures) | Prospective (at transitions) |
+| Agent count | Multi-agent (Architect, Note-Taker) | Single agent |
 
-Unlike Context-Folding and AgentFold, SPACE does not learn optimal compression points. Agents must explicitly decide when to transition—a burden that learned approaches automate. We view this as an acceptable tradeoff for training-free deployment and model portability.
+CCA's "hindsight notes" capture *what went wrong* after failures. SPACE's prospective notes capture *what matters* at transitions. These are complementary:
+- **Prospective** (SPACE): Captures intent and understanding in the moment
+- **Hindsight** (CCA): Captures lessons from failures after the fact
 
-## 6.7 Design Decisions
+A promising hybrid would combine both: SPACE's explicit scope transitions with CCA's automatic hindsight notes on errors.
 
-### 6.7.1 Why Not Rewind?
+### Design Space Summary
 
-An earlier version included a `rewind` command. We removed it based on the principle: **"rewriting the past is dangerous; it's better to take a note acknowledging the error."** Errors become learning opportunities when captured as notes.
+These three systems occupy different points in the design space:
 
-### 6.7.2 Why Asymmetric Note Placement?
+```
+         Implicit ←————————————————————→ Explicit
+            │                                 │
+           CCA            Context-Folding   SPACE
+      (automated)          (learned)      (commanded)
+```
 
-Asymmetric placement—origin for `scope` (departure), `main` for `return` (arrival)—emerged as optimal because `scope` notes explain **why leaving** (context stays with main) and `return` notes explain **what bringing back** (results act as a commit message).
+SPACE's position at the explicit pole maximizes interpretability and portability at the cost of requiring agent discipline.
 
-### 6.7.3 Why Separate Notes and Insights?
+## 6.6 Future Directions
 
-The episodic/semantic distinction mirrors human memory theory [21]. Notes capture **what happened** (task-specific events), while insights capture **what was learned** (generalizable knowledge). This separation enables knowledge transfer patterns impossible with a single memory tier: an insight from debugging ("always check null before accessing .data") benefits all future tasks, while notes about specific file changes remain scoped.
+**Full Benchmark Evaluation:** Completing evaluation on SWE-Bench-CL and extending to BrowseComp-Plus, OSWorld, and MemoryBench to enable direct comparison with Context-Folding's reported results.
 
-## 6.8 Relationship to Human Memory
+**Hybrid SPACE + Learned Compression:** Using SPACE's architectural constraints as a scaffold for learned compression—the model learns *what* to include in notes/insights while SPACE enforces *when* transitions occur.
 
-Our approach draws explicit parallels to Tulving's memory taxonomy [21]: scopes resemble episodic contexts, notes resemble episodic encoding, insights resemble semantic memory consolidation, and transitions resemble context shifts. The three-tier architecture (working, episodic, semantic) maps directly to cognitive science models, suggesting that effective memory systems—whether biological or artificial—may share structural principles.
+**Multi-Model Orchestration:** SPACE's model-agnostic design enables using different models for different scopes (e.g., GPT-4.1 for planning in main, GPT-4.1-mini for execution in scopes).
 
-## 6.9 Future-Proofing for Next-Generation Models
+**Cross-Session Learning:** Extending insights to persist across conversation sessions, enabling agents that genuinely learn from experience over time.
 
-As the field anticipates the release of next-generation frontier models, the trend towards million-token context windows continues. However, larger windows do not solve the *attention dilution* problem—performance on reasoning tasks typically degrades as context fills with noise [4, 5]. Furthermore, the computational cost and latency of processing these massive contexts remain prohibitive for real-time agent loops. ECM provides a crucial architectural layer for these future models, ensuring that their superior reasoning capabilities are applied to high-signal, self-curated contexts rather than diluted by raw interaction logs.
-
-## 6.10 Structured Test-Time Compute
-
-The prevailing paradigm for enhancing model performance at inference time—**Test-Time Compute (TTC)** [41]—often relies on brute-force strategies like generating multiple Chain-of-Thought (CoT) paths [38] or deepening search trees (Tree of Thoughts) [39]. While effective, these approaches suffer from unstructured expansion: the model generates vast amounts of tokens that may be repetitive, circular, or irrelevant, with no mechanism to "garbage collect" bad reasoning paths.
-
-SPACE reframes TTC from unstructured token expenditure into **Structured Cognitive Allocation**:
-
-1.  **Scopes as Compute Budgets**: Each `scope` represents a deliberate allocation of computational resources to a specific sub-problem. Unlike unbounded CoT, a scope is a "container" for thought that must eventually be closed.
-2.  **Returns as Cognitive Commits**: The `return` command forces a **crystallization** of reasoning. It requires the agent to synthesize its exploration into a concrete decision (`[DECISION]`) and discard the noisy process that led to it. This prevents the "cognitive drift" common in long CoT traces where earlier errors pollute later reasoning.
-3.  **Externalized Reasoning**: While CoT externalizes reasoning in *text*, SPACE externalizes it in *structure*. The graph of scopes and the stack of notes form a high-level representation of the problem-solving process that is more robust than a linear stream of tokens.
-
-In this view, SPACE acts as a **Test-Time Compute Controller**, allowing agents to "think longer" about complex problems without paying the quadratic attention cost usually associated with long-context reasoning. It transforms *In-Context Learning* [40] from a passive accumulation of history into an active, agent-driven curation process.
-
-### 6.10.1 Stabilization vs. Planning
-
-It is crucial to distinguish SPACE from a hierarchical planner. In planning algorithms (like ToT), branches often represent individual *ideas* or atomic steps. In SPACE, scopes represent **stable lines of reasoning**. Planning is inherently turbulent exploration; SPACE provides the **containment** for this turbulence. By isolating the messy process of trial-and-error within a scope and only propagating the stabilized conclusion (via `return`), SPACE acts as a **Cognitive Stabilization System**. It does not tell the agent *what* to think (planning), but *where* to think to maintain coherence (containment).
+*Extended discussion of Test-Time Compute and theoretical foundations is provided in Appendix D.*

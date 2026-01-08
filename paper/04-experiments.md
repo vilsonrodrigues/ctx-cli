@@ -1,28 +1,28 @@
 # 4. Experiments
 
-We evaluate Explicit Context Management (ECM) across four experimental scenarios designed to measure token economics and knowledge retention capabilities.
+We evaluate SPACE across four experimental scenarios designed to measure token economics and knowledge retention capabilities. **Note: Results presented in Section 5 are preliminary estimates from pilot runs. Full evaluation with official benchmark harnesses is ongoing.**
 
 ## 4.0 Benchmark Selection Rationale
 
 Recent benchmarks for long-horizon agents include OdysseyBench [32] (office workflows), AppWorld [33] (interactive coding), TheAgentCompany [34] (enterprise tasks), and MemoryBench [35] (memory evaluation). We selected **SWE-Bench-CL** [30] as our primary benchmark because:
 
 1. **Continual learning focus**: Tasks are chronologically ordered, enabling measurement of forward/backward knowledge transfer
-2. **Sequential context accumulation**: Each task builds on knowledge from previous fixes—the exact scenario where ECM provides value
+2. **Sequential context accumulation**: Each task builds on knowledge from previous fixes—the exact scenario where SPACE provides value
 3. **Established baseline**: Enables comparison with linear conversation agents and learned compression approaches
 4. **Reproducibility**: Open-source dataset with well-defined evaluation metrics
 
-We complement SWE-Bench-CL with synthetic tasks (multi-step design, knowledge transfer, alternative exploration) to isolate specific ECM capabilities.
+We complement SWE-Bench-CL with synthetic tasks (multi-step design, knowledge transfer, alternative exploration) to isolate specific SPACE capabilities.
 
 ## 4.1 Experimental Setup
 
 ### 4.1.1 Model and Infrastructure
 
-All experiments use **GPT-4.1-mini** via the OpenAI API. We chose this model for:
+All experiments use **GPT-4.1-mini** [42] via the OpenAI API. We chose this model for:
 - Tool-use capability required for command interface
-- Moderate context window (128K tokens) representative of current deployments
+- Moderate context window (1M tokens) representative of current deployments
 - Cost efficiency for multiple experimental runs
 
-Token counting uses **tiktoken** with the cl100k_base encoding for accurate measurement.
+Token counting uses **tiktoken** with the o200k_base encoding for accurate measurement.
 
 ### 4.1.2 Baseline: Linear Conversation
 
@@ -31,10 +31,10 @@ The baseline represents traditional agent architecture:
 - No context management tools available
 - Standard system prompt (~30 tokens)
 
-### 4.1.3 Treatment: Scope-Based Context
+### 4.1.3 Treatment: SPACE-Based Context
 
-The treatment provides explicit context management:
-- Four commands available as tools (scope, goto, note, scopes/notes)
+The treatment provides explicit context management via SPACE:
+- Six commands available as tools (`scope`, `return`, `note`, `insight`, `notes`, `insights`, `status`)
 - Extended system prompt explaining commands and workflow (~800 tokens)
 - Same underlying model and API
 
@@ -75,7 +75,7 @@ Each step builds on previous decisions, requiring the agent to maintain coherent
 
 **Linear baseline**: Context grows with each step. By step 8, context includes all previous 7 exchanges plus current.
 
-**Scope treatment**: Agent should:
+**SPACE treatment**: Agent should:
 1. Create scopes for related work (e.g., "data-model", "auth", "api")
 2. Take notes on key decisions within each scope
 3. Return to main with summaries
@@ -105,7 +105,7 @@ Two sequential projects simulating separate development efforts:
 
 **Linear baseline**: Project B starts fresh. The agent must rediscover patterns (validation structure, to_dict implementation) from scratch.
 
-**Scope treatment**:
+**SPACE treatment**:
 1. Project A creates notes documenting patterns
 2. Between projects, working messages are cleared but notes persist
 3. Project B queries notes from Project A
@@ -113,7 +113,7 @@ Two sequential projects simulating separate development efforts:
 
 ### 4.3.3 Measurement
 
-Between projects, we clear working messages in both conditions to simulate session boundaries. Only the scope treatment retains episodic memory (notes).
+Between projects, we clear working messages in both conditions to simulate session boundaries. Only the SPACE treatment retains episodic memory (notes).
 
 ## 4.4 Task 3: Alternative Exploration
 
@@ -134,7 +134,7 @@ The agent must explore two architectural approaches:
 
 **Linear baseline**: All exploration in single context. OT analysis pollutes CRDT analysis and vice versa.
 
-**Scope treatment**:
+**SPACE treatment**:
 1. Create scope for OT exploration
 2. Take notes on OT pros/cons, tech stack
 3. Return to main with summary
@@ -163,7 +163,7 @@ For our evaluation, we use a simplified version that measures context window gro
 
 **Linear baseline**: Context grows with each task as previous analyses accumulate. After 15 tasks, context includes all prior exchanges.
 
-**Scope treatment**:
+**SPACE treatment**:
 1. Create scope for each task
 2. Analyze problem, identify patterns
 3. Note reusable patterns (file structures, Django idioms)
@@ -205,10 +205,11 @@ To ensure fair comparison:
 
 Our experimental design has limitations:
 
-1. **Single model**: Results may not generalize to other models (though ECM is model-agnostic by design)
+1. **Single model**: Results may not generalize to other models (though SPACE is model-agnostic by design)
 2. **Synthetic tasks**: Tasks 1-3 are synthetic; real-world agent tasks may differ in structure
-3. **Prompted behavior**: ECM success depends on agent following workflow—a tradeoff we discuss in Section 6
+3. **Prompted behavior**: SPACE success depends on agent following workflow—a tradeoff we discuss in Section 6
 4. **No comparison with learned approaches**: We compare against linear baselines, not Context-Folding or AgentFold (which require different model training)
 5. **Token metrics only**: We measure efficiency, not solution quality (addressed in Section 6)
+6. **Preliminary data**: Current results are from pilot runs; full evaluation is ongoing
 
-We note that learned compression approaches (Context-Folding, AgentFold, CaT) achieve similar or better compression ratios but require training infrastructure that ECM avoids.
+We note that learned compression approaches (Context-Folding, AgentFold, CaT) achieve similar or better compression ratios but require training infrastructure that SPACE avoids.
