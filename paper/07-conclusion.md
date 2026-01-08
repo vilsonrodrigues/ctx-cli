@@ -13,7 +13,7 @@ Our experiments on SWE-Bench-CL [30] demonstrate:
 - **Successful knowledge transfer** across task sequences
 - **Comparable to learned approaches** (Context-Folding: 10×, AgentFold: ~7K@100t, CaT: 70%) without training overhead
 
-These results are achieved with **no fine-tuning**, **no reinforcement learning**, and **no model modifications**—only a tool interface that works with any model supporting function calling (GPT-4, Claude, Gemini, open-source).
+These results are achieved using standard tool-use interfaces available in current frontier models, demonstrating that effective context management can be implemented as a software architecture rather than a learned model capability.
 
 ## Contributions
 
@@ -40,7 +40,7 @@ Several directions merit further investigation:
 
 ## Closing Remarks
 
-The central insight of this work is that effective context management for long-running agents need not require training. While learned compression approaches (Context-Folding, AgentFold, CaT) achieve impressive results, they require significant training infrastructure and produce model-specific solutions. ECM demonstrates that simple, explicit mechanisms—giving agents deliberate control over their memory—achieve comparable token reduction with immediate deployability across any tool-use capable model.
+The central insight of this work is that effective context management for long-running agents need not require training. While learned compression approaches (Context-Folding, AgentFold, CaT) achieve impressive results, they require significant training infrastructure and produce model-specific solutions. ECM demonstrates that explicit context management can be delivered immediately across any tool-use capable model, shifting the complexity from model training to agent architecture.
 
 As language models tackle increasingly ambitious, long-horizon tasks, managing context will become critical infrastructure. We hope ECM provides a practical, portable foundation for building agents that can reason across extended task horizons without losing track of what they've learned.
 

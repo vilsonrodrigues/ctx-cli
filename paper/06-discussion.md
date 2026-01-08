@@ -61,7 +61,7 @@ Our results (88% context reduction) are comparable to learned approaches: Contex
 
 SPACE trades potential compression efficiency for three properties learned approaches lack:
 
-1. **Zero training overhead**: Deploy immediately with GPT-4, Claude, Gemini, or open-source models
+1. **Zero training overhead**: Deploy immediately with any tool-use capable model
 2. **Radial navigation**: Isolated exploration with forced consolidation
 3. **Semantic memory**: Insights provide global knowledge transfer unavailable in compression-only systems
 
@@ -113,7 +113,7 @@ Our approach draws explicit parallels to Tulving's memory taxonomy [21]: scopes 
 
 ## 6.9 Future-Proofing for Next-Generation Models
 
-As the field anticipates the release of frontier models like **GPT-5.2**, **Claude 4.5 Opus**, and **Gemini 3**, the trend towards million-token context windows continues. However, larger windows do not solve the *attention dilution* problem—performance on reasoning tasks typically degrades as context fills with noise [4, 5]. Furthermore, the computational cost and latency of processing these massive contexts remain prohibitive for real-time agent loops. ECM provides a crucial architectural layer for these future models, ensuring that their superior reasoning capabilities are applied to high-signal, self-curated contexts rather than diluted by raw interaction logs.
+As the field anticipates the release of next-generation frontier models, the trend towards million-token context windows continues. However, larger windows do not solve the *attention dilution* problem—performance on reasoning tasks typically degrades as context fills with noise [4, 5]. Furthermore, the computational cost and latency of processing these massive contexts remain prohibitive for real-time agent loops. ECM provides a crucial architectural layer for these future models, ensuring that their superior reasoning capabilities are applied to high-signal, self-curated contexts rather than diluted by raw interaction logs.
 
 ## 6.10 Structured Test-Time Compute
 

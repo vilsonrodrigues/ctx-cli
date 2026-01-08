@@ -86,7 +86,7 @@ This paper makes the following contributions:
 
 5. **Empirical validation of token economics.** We demonstrate **88% reduction in peak context** (12,059 → 1,402 tokens) and **34% faster execution** on sequential coding tasks from SWE-Bench-CL [30], comparable to learned approaches but without training overhead.
 
-6. **An open-source, model-agnostic implementation** that integrates with any tool-use capable model (GPT-4, Claude, Gemini, open-source) and includes robust handling of API-specific constraints.
+6. **An open-source, model-agnostic implementation** that integrates with any tool-use capable model and includes robust handling of API-specific constraints.
 
 Our approach occupies a distinct position in the design space: simpler than learned compression, more flexible than stack-based decomposition, and more transparent than agentic memory systems. The tradeoff is explicit dependence on agent compliance—the model must correctly use the commands. We view this as acceptable for applications where interpretability, portability, and simplicity are valued alongside performance.
 
