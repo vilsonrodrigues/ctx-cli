@@ -348,21 +348,23 @@ class SWEBenchCLAdapter(HarnessAdapter):
     - Memory persistence across sequence tasks
     """
 
-    # Task-specific instructions (combined with ECM base prompt)
+    # Task-specific context (appended to ECM base prompt from prompts.py)
     TASK_INSTRUCTIONS = """
-# SWE-Bench-CL Task
+# SWE-Bench-CL Context
 
-You are solving GitHub issues in a repository. For each issue:
-1. Analyze the problem statement carefully
-2. Consider any hints provided
-3. Generate a git diff patch to fix the issue
+You are solving GitHub issues in a repository sequence.
+Issues are chronologically ordered - patterns from earlier fixes help with later ones.
 
-## Memory Strategy
-- Use `note -m "..."` to save patterns you discover in this codebase
-- Use `insight -m "..."` for cross-cutting patterns (e.g., error handling style)
-- Use `notes` before each task to recall what you learned from previous issues
+## Scope Naming
+Use: `task/<issue_id>` (e.g., `task/django-12345`)
 
-Format your response as a git diff patch:
+## What to Note
+- Codebase patterns: "Django uses lazy queryset evaluation"
+- File locations: "Auth logic lives in django/contrib/auth/"
+- Error patterns: "This repo raises ValueError for invalid input"
+
+## Output Format
+Generate a git diff patch:
 ```diff
 diff --git a/path/to/file.py b/path/to/file.py
 --- a/path/to/file.py

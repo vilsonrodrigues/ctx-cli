@@ -486,41 +486,26 @@ class TheAgentCompanyAdapter(HarnessAdapter):
     - task/<task_id>: Task-specific work
     """
 
-    # Task-specific instructions (combined with ECM base prompt)
+    # Task-specific context (appended to ECM base prompt)
     TASK_INSTRUCTIONS = """
-# TheAgentCompany Task
+# TheAgentCompany Context
 
-You are working in a realistic company environment with:
-- GitLab: Code repositories and merge requests
-- Plane: Project management and sprints
-- ownCloud: File storage and sharing
+Company environment with persistent state:
+- GitLab: Code repositories, merge requests
+- Plane: Project management, sprints
+- ownCloud: File storage, sharing
 - RocketChat: Team communication
 
-## Memory Strategy for Company Work
+## Scope Naming
+Use: `task/<task_id>` (e.g., `task/swe_gitlab_pr_001`)
 
-Use ECM scopes to organize company knowledge:
+## What to Note
+- "Process: GitLab MRs need 2 approvals"
+- "Team: Sarah handles onboarding, Mike handles finance"
+- "Pattern: Use RocketChat for async, Plane for tracking"
 
-1. `scope company/codebase -m "..."` - For code patterns, repo structure
-2. `scope company/team -m "..."` - For team info, responsibilities
-3. `scope company/tools -m "..."` - For tool usage patterns
-4. `scope company/processes -m "..."` - For business workflows
-5. `scope task/<id> -m "..."` - For specific task work
-
-## Workflow for Each Task
-
-1. Check `notes company/*` to recall company knowledge
-2. Create a task scope: `scope task/<task_id> -m "Goal..."`
-3. Run `status` to see available context
-4. Work on the task, saving important findings as notes
-5. Return with summary: `return -m "[SUMMARY]...[DECISION]...[NEXT]..."`
-
-## Important Guidelines
-
-- Tasks share a persistent company environment
-- Knowledge from earlier tasks helps with later ones
-- Use `insight` for cross-cutting patterns (e.g., "Team prefers async communication")
-- Be thorough - real work requires multiple steps
-- Partial credit is given for checkpoints achieved
+## Evaluation
+Tasks have checkpoints - partial credit for each achieved.
 """
 
     # Combined prompt: ECM base + task-specific

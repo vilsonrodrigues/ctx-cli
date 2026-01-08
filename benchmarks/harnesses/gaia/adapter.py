@@ -220,29 +220,26 @@ class GAIAAdapter(HarnessAdapter):
     - Tool use patterns
     """
 
+    # Task-specific context (appended to ECM base prompt)
     TASK_INSTRUCTIONS = """
-# GAIA Benchmark Task
+# GAIA Context
 
-You are solving a general AI assistant task that may require:
-- Web search and information retrieval
-- Code execution and calculations
-- Multi-step reasoning
-- File analysis (if provided)
+General AI assistant tasks requiring:
+- Web search, code execution, multi-step reasoning
+- File analysis (images, PDFs, audio when provided)
+- Factual accuracy with verifiable answers
 
-## Memory Strategy
-- Use `note -m "..."` to save intermediate findings
-- Use `insight -m "..."` for reusable patterns
-- Use `notes` to recall previous findings
+## Scope Naming
+Use: `gaia/<task_id>` (e.g., `gaia/q0042`)
+
+## What to Note
+- "Strategy: Wikipedia disambiguation for ambiguous names"
+- "Pattern: Date questions need multiple source verification"
 
 ## Answer Format
-Provide a clear, concise final answer. GAIA expects:
-- Exact answers (numbers, names, dates)
-- No explanation needed in the answer
-- Just the answer itself
-
-Example:
-Q: "What is the capital of France?"
-A: "Paris"
+GAIA expects exact answers only - no explanation:
+- Q: "Capital of France?" → A: "Paris"
+- Q: "2+2?" → A: "4"
 """
 
     SYSTEM_PROMPT = SYSTEM_PROMPT_ECM + TASK_INSTRUCTIONS

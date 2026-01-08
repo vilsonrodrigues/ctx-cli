@@ -58,6 +58,17 @@ def count_context_tokens(messages: list[dict], model: str = "gpt-4o") -> int:
     return total + 3  # reply priming
 
 
+def count_working_tokens(messages: list[dict], model: str = "gpt-4o") -> int:
+    """
+    Count tokens excluding system prompt.
+
+    This is the key metric for measuring actual context growth,
+    since the system prompt is constant and cacheable.
+    """
+    working = [m for m in messages if m.get("role") != "system"]
+    return count_context_tokens(working, model)
+
+
 # =============================================================================
 # Token Economics Metrics
 # =============================================================================
@@ -515,13 +526,19 @@ class TaskTokenRecord:
     task_id: str
     task_name: str = ""
 
-    # Token counts
+    # Token counts (legacy - includes system prompt)
     input_tokens: int = 0
     output_tokens: int = 0
 
-    # Context window state
+    # Context window state (legacy)
     context_at_start: int = 0
     context_at_end: int = 0
+
+    # NEW: Working context (excludes system prompt - the real metric)
+    prompt_tokens_start: int = 0     # Working context at START of task
+    prompt_tokens: int = 0           # Working context at END of task
+    peak_prompt_tokens: int = 0      # Maximum working context during task
+    completion_tokens: int = 0       # Output tokens (same as output_tokens)
 
     # Performance
     api_calls: int = 0
@@ -553,16 +570,29 @@ class TaskTokenRecord:
         """Number of ctx_cli commands executed."""
         return len(self.ctx_cli_commands)
 
+    @property
+    def prompt_delta(self) -> int:
+        """Change in working context during this task."""
+        return self.prompt_tokens - self.prompt_tokens_start
+
     def to_dict(self) -> dict:
         return {
             "task_id": self.task_id,
             "task_name": self.task_name,
+            # Legacy (includes system prompt)
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
             "context_at_start": self.context_at_start,
             "context_at_end": self.context_at_end,
             "context_delta": self.context_delta,
+            # Working context (excludes system prompt - the real metrics)
+            "prompt_tokens_start": self.prompt_tokens_start,
+            "prompt_tokens": self.prompt_tokens,
+            "prompt_delta": self.prompt_delta,
+            "peak_prompt_tokens": self.peak_prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            # Performance
             "api_calls": self.api_calls,
             "execution_time": round(self.execution_time_seconds, 3),
             "success": self.success,
@@ -619,6 +649,54 @@ class CumulativeTokenReport:
         """Context window size after each task - key metric for paper."""
         return [t.context_at_end for t in self.tasks]
 
+    # =========================================================================
+    # Working Context Metrics (excludes system prompt - the real metrics)
+    # =========================================================================
+
+    @property
+    def prompt_trajectory_start(self) -> list[int]:
+        """Working context at START of each task."""
+        return [t.prompt_tokens_start for t in self.tasks]
+
+    @property
+    def prompt_trajectory(self) -> list[int]:
+        """Working context (excluding system prompt) at END of each task."""
+        return [t.prompt_tokens for t in self.tasks]
+
+    @property
+    def peak_prompt(self) -> int:
+        """Maximum working context across all tasks - key paper metric."""
+        if not self.tasks:
+            return 0
+        return max(t.peak_prompt_tokens for t in self.tasks)
+
+    @property
+    def completion_trajectory(self) -> list[int]:
+        """Completion tokens per task."""
+        return [t.completion_tokens for t in self.tasks]
+
+    @property
+    def total_completion_tokens(self) -> int:
+        """Sum of all completion tokens."""
+        return sum(t.completion_tokens for t in self.tasks)
+
+    @property
+    def final_prompt(self) -> int:
+        """Working context at last task."""
+        return self.tasks[-1].prompt_tokens if self.tasks else 0
+
+    @property
+    def avg_prompt_growth_per_task(self) -> float:
+        """Average increase in working context per task."""
+        if len(self.tasks) < 2:
+            return 0.0
+        trajectory = self.prompt_trajectory
+        if not trajectory:
+            return 0.0
+        first = trajectory[0]
+        last = trajectory[-1]
+        return (last - first) / len(self.tasks)
+
     @property
     def success_rate(self) -> float:
         """Fraction of tasks completed successfully."""
@@ -664,17 +742,29 @@ class CumulativeTokenReport:
                 "num_tasks": self.num_tasks,
             },
             "summary": {
+                # Legacy (includes system prompt)
                 "total_input_tokens": self.total_input_tokens,
                 "total_output_tokens": self.total_output_tokens,
                 "peak_context": self.peak_context,
                 "final_context": self.final_context,
                 "avg_context_growth": round(self.avg_context_growth_per_task, 1),
+                # Working context (excludes system prompt - the real metrics)
+                "peak_prompt": self.peak_prompt,
+                "final_prompt": self.final_prompt,
+                "avg_prompt_growth": round(self.avg_prompt_growth_per_task, 1),
+                "total_completion_tokens": self.total_completion_tokens,
+                # Success
                 "success_rate": round(self.success_rate, 3),
             },
             "trajectory": {
+                # Legacy
                 "cumulative_input": self.cumulative_input,
                 "cumulative_output": self.cumulative_output,
                 "context_trajectory": self.context_trajectory,
+                # Working context (key for paper figures)
+                "prompt_trajectory_start": self.prompt_trajectory_start,
+                "prompt_trajectory": self.prompt_trajectory,
+                "completion_trajectory": self.completion_trajectory,
             },
             "tasks": [t.to_dict() for t in self.tasks],
         }
@@ -684,21 +774,34 @@ class CumulativeTokenReport:
         with open(path, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow([
+                # Task info
                 "task_idx", "task_id", "task_name",
-                "input_tokens", "output_tokens", "total_tokens",
-                "cumulative_input", "cumulative_output",
-                "context_at_end", "api_calls", "success"
+                # Working context (key metrics - excludes system prompt)
+                "prompt_start", "prompt_end", "prompt_delta", "peak_prompt",
+                "completion_tokens",
+                # Cumulative working context
+                "cumulative_prompt", "cumulative_completion",
+                # Legacy (includes system prompt)
+                "input_tokens", "output_tokens", "context_at_end",
+                # Performance
+                "api_calls", "success"
             ])
-            cum_in = 0
-            cum_out = 0
+            cum_prompt = 0
+            cum_completion = 0
             for i, t in enumerate(self.tasks):
-                cum_in += t.input_tokens
-                cum_out += t.output_tokens
+                cum_prompt += t.prompt_tokens
+                cum_completion += t.completion_tokens
                 writer.writerow([
                     i + 1, t.task_id, t.task_name,
-                    t.input_tokens, t.output_tokens, t.total_tokens,
-                    cum_in, cum_out,
-                    t.context_at_end, t.api_calls, int(t.success)
+                    # Working context
+                    t.prompt_tokens_start, t.prompt_tokens, t.prompt_delta, t.peak_prompt_tokens,
+                    t.completion_tokens,
+                    # Cumulative
+                    cum_prompt, cum_completion,
+                    # Legacy
+                    t.input_tokens, t.output_tokens, t.context_at_end,
+                    # Performance
+                    t.api_calls, int(t.success)
                 ])
 
     def to_json(self, indent: int = 2) -> str:
@@ -714,6 +817,25 @@ def compare_token_reports(ecm: CumulativeTokenReport, linear: CumulativeTokenRep
     """Compare ECM vs Linear cumulative reports."""
     return {
         "num_tasks": ecm.num_tasks,
+        # Working context (key metrics - excludes system prompt)
+        "peak_prompt": {
+            "ecm": ecm.peak_prompt,
+            "linear": linear.peak_prompt,
+            "reduction": round(1 - ecm.peak_prompt / max(linear.peak_prompt, 1), 3),
+        },
+        "final_prompt": {
+            "ecm": ecm.final_prompt,
+            "linear": linear.final_prompt,
+        },
+        "prompt_growth_per_task": {
+            "ecm": round(ecm.avg_prompt_growth_per_task, 1),
+            "linear": round(linear.avg_prompt_growth_per_task, 1),
+        },
+        "total_completion_tokens": {
+            "ecm": ecm.total_completion_tokens,
+            "linear": linear.total_completion_tokens,
+        },
+        # Legacy (includes system prompt)
         "peak_context": {
             "ecm": ecm.peak_context,
             "linear": linear.peak_context,
@@ -731,6 +853,7 @@ def compare_token_reports(ecm: CumulativeTokenReport, linear: CumulativeTokenRep
             "ecm": round(ecm.avg_context_growth_per_task, 1),
             "linear": round(linear.avg_context_growth_per_task, 1),
         },
+        # Success
         "success_rate": {
             "ecm": round(ecm.success_rate, 3),
             "linear": round(linear.success_rate, 3),

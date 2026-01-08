@@ -333,31 +333,46 @@ class LifelongAgentBenchHarness(OfficialHarness):
 class LifelongAgentBenchAdapter(HarnessAdapter):
     """ECM-specific adapter for LifelongAgentBench."""
 
-    # Task-specific instructions per environment
+    # Task-specific context per environment (appended to ECM base prompt)
     TASK_INSTRUCTIONS = {
         "db": """
-# Database Administration Task
+# Database Task Context
 
-You are executing SQL queries. Use ECM to:
-- `note -m "table X has columns: ..."` - Save table structures
-- `note -m "query pattern: ..."` - Save useful query patterns
-- `notes` - Recall saved patterns before complex queries
+Environment: SQL database administration.
+Tasks build on each other - table structures and query patterns transfer.
+
+## Scope Naming
+Use: `db/<task_id>` (e.g., `db/create_employees`)
+
+## What to Note
+- "Schema: employees(id, name, dept, salary)"
+- "Pattern: aggregate + GROUP BY for summaries"
 """,
         "os": """
-# Linux System Administration Task
+# Linux Task Context
 
-You are executing bash commands. Use ECM to:
-- `note -m "file X is at /path/..."` - Save file locations
-- `note -m "command pattern: ..."` - Save useful command patterns
-- `notes` - Recall saved patterns before complex operations
+Environment: Bash/Linux system administration.
+Tasks build on each other - file locations and command patterns transfer.
+
+## Scope Naming
+Use: `os/<task_id>` (e.g., `os/create_project`)
+
+## What to Note
+- "Location: project at /home/user/project/"
+- "Pattern: find + xargs for batch ops"
 """,
         "kg": """
-# Knowledge Graph Task
+# Knowledge Graph Task Context
 
-You are executing SPARQL queries. Use ECM to:
-- `note -m "entity X has properties: ..."` - Save graph structure
-- `note -m "query pattern: ..."` - Save useful query patterns
-- `notes` - Recall saved patterns before complex queries
+Environment: SPARQL knowledge graph queries.
+Tasks build on each other - graph structure and query patterns transfer.
+
+## Scope Naming
+Use: `kg/<task_id>` (e.g., `kg/select_persons`)
+
+## What to Note
+- "Structure: Person(name, age, city)"
+- "Pattern: OPTIONAL for nullable relations"
 """,
     }
 
