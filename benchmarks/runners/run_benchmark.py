@@ -198,8 +198,11 @@ def run_benchmark(
 
         print(f"\n[{benchmark}] ECM Results:")
         print(f"  Tasks: {token_report.num_tasks}")
-        print(f"  Peak Context: {token_report.peak_context:,} tokens")
+        print(f"  Peak Working Context: {token_report.peak_prompt:,} tokens")
+        print(f"  Final Working Context: {token_report.final_prompt:,} tokens")
+        print(f"  Avg Growth/Task: {token_report.avg_prompt_growth_per_task:.1f} tokens")
         print(f"  Success Rate: {token_report.success_rate:.1%}")
+        print(f"  (Legacy peak context with system prompt: {token_report.peak_context:,} tokens)")
 
     except Exception as e:
         print(f"[{benchmark}] Error during ECM evaluation: {e}")
@@ -355,11 +358,15 @@ Examples:
             ecm = results["ecm"]
             if "token_report" in ecm and ecm["token_report"]:
                 summary = ecm["token_report"]["summary"]
-                print(f"\nECM Performance:")
+                print(f"\nECM Performance (Working Context - excludes system prompt):")
+                print(f"  Peak Working Context: {summary.get('peak_prompt', 0):,} tokens")
+                print(f"  Final Working Context: {summary.get('final_prompt', 0):,} tokens")
+                print(f"  Avg Growth/Task: {summary.get('avg_prompt_growth', 0):.1f} tokens")
+                print(f"  Total Completion: {summary.get('total_completion_tokens', 0):,} tokens")
+                print(f"  Success Rate: {summary['success_rate']:.1%}")
+                print(f"\nLegacy (includes system prompt):")
                 print(f"  Peak Context: {summary['peak_context']:,} tokens")
                 print(f"  Total Input: {summary['total_input_tokens']:,} tokens")
-                print(f"  Success Rate: {summary['success_rate']:.1%}")
-                print(f"  Avg Growth/Task: {summary['avg_context_growth']:.1f} tokens")
 
 
 if __name__ == "__main__":
