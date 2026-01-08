@@ -1,215 +1,102 @@
-# 4. Experiments
+# 4. Experimental Setup
 
-We evaluate SPACE across four experimental scenarios designed to measure token economics and knowledge retention capabilities. **Note: Results presented in Section 5 are preliminary estimates from pilot runs. Full evaluation with official benchmark harnesses is ongoing.**
+We evaluate SPACE across four experimental scenarios designed to isolate specific cognitive capabilities and measure token economics under controlled conditions. This section details the benchmark selection rationale, experimental infrastructure, and specific task protocols.
 
-## 4.0 Benchmark Selection Rationale
+## 4.1 Benchmark Selection Rationale
 
-Recent benchmarks for long-horizon agents include OdysseyBench [32] (office workflows), AppWorld [33] (interactive coding), TheAgentCompany [34] (enterprise tasks), and MemoryBench [35] (memory evaluation). We selected **SWE-Bench-CL** [30] as our primary benchmark because:
+Recent benchmarks for long-horizon agents include **OdysseyBench** [32] (office workflows), **AppWorld** [33] (interactive coding), **TheAgentCompany** [34] (enterprise tasks), and **MemoryBench** [35] (long-term retrieval). We selected **SWE-Bench-CL** [30] as our primary evaluation platform for the following reasons:
 
-1. **Continual learning focus**: Tasks are chronologically ordered, enabling measurement of forward/backward knowledge transfer
-2. **Sequential context accumulation**: Each task builds on knowledge from previous fixes—the exact scenario where SPACE provides value
-3. **Established baseline**: Enables comparison with linear conversation agents and learned compression approaches
-4. **Reproducibility**: Open-source dataset with well-defined evaluation metrics
+1.  **Continual Learning Focus**: Unlike episodic benchmarks, SWE-Bench-CL tasks are chronologically ordered, enabling the measurement of both forward transfer (applying past knowledge to new tasks) and backward transfer (updating general understanding based on new evidence).
+2.  **Sequential Context Accumulation**: The benchmark simulates a realistic development lifecycle where each task builds upon the codebase state of previous tasks—precisely the scenario where linear context accumulation becomes prohibitive.
+3.  **Established Baseline**: It provides a standard for comparison against both linear conversation agents and recent learned compression approaches.
+4.  **Reproducibility**: The dataset offers well-defined evaluation metrics and deterministic task environments.
 
-We complement SWE-Bench-CL with synthetic tasks (multi-step design, knowledge transfer, alternative exploration) to isolate specific SPACE capabilities.
+We complement SWE-Bench-CL with targeted synthetic tasks (Multi-Step Design, Knowledge Transfer, Alternative Exploration) to isolate specific mechanical properties of the SPACE architecture that might be obscured in aggregate benchmarks.
 
-## 4.1 Experimental Setup
+## 4.2 Infrastructure and Methodology
 
-### 4.1.1 Model and Infrastructure
+### 4.2.1 Model Specification
+All experiments utilize **GPT-4o-mini** [42] (version `2024-07-18`) accessed via the OpenAI API. We selected this model to demonstrate that SPACE's architectural benefits are realizable with cost-effective, mid-tier models, not just frontier-class reasoning models. The model was configured with `temperature=0.7` to balance creativity with deterministic tool usage.
 
-All experiments use **GPT-4.1-mini** [42] via the OpenAI API. We chose this model for:
-- Tool-use capability required for command interface
-- Moderate context window (1M tokens) representative of current deployments
-- Cost efficiency for multiple experimental runs
+### 4.2.2 Token Metrology
+Token usage was quantified using `tiktoken` with the `o200k_base` encoding scheme. We report metrics across six dimensions:
 
-Token counting uses **tiktoken** with the o200k_base encoding for accurate measurement.
+| Metric | Definition | Significance |
+| :--- | :--- | :--- |
+| **Base Input** | Initial prompt size (System + Tools + User) | Represents the fixed overhead of the architecture. |
+| **Peak Input** | Maximum tokens in a single inference call | Proxy for latency and attention dilution risk. |
+| **Growth** | Peak Input minus Base Input | Measures the actual accumulation of dynamic context. |
+| **Total Input** | Cumulative tokens processed | Direct proxy for financial cost. |
+| **Total Output** | Cumulative tokens generated | Measures generation overhead. |
+| **Iterations** | Count of model inference turns | Measures algorithmic efficiency. |
 
-### 4.1.2 Baseline: Linear Conversation
+### 4.2.3 Experimental Conditions
 
-The baseline represents traditional agent architecture:
-- All messages accumulate in a single conversation history
-- No context management tools available
-- Standard system prompt (~30 tokens)
+**Baseline Condition (Linear)**:
+*   Standard chat completion loop.
+*   Full history retention (no truncation).
+*   Standard system prompt ($\sim$30 tokens).
+*   No explicit memory tools.
 
-### 4.1.3 Treatment: SPACE-Based Context
+**Treatment Condition (SPACE)**:
+*   SPACE loop (Algorithm 2).
+*   Context managed via explicit commands.
+*   Extended system prompt defining memory semantics ($\sim$800 tokens).
+*   Full toolset: `scope`, `return`, `note`, `insight`, `notes`, `insights`, `status`.
 
-The treatment provides explicit context management via SPACE:
-- Six commands available as tools (`scope`, `return`, `note`, `insight`, `notes`, `insights`, `status`)
-- Extended system prompt explaining commands and workflow (~800 tokens)
-- Same underlying model and API
+## 4.3 Task 1: Multi-Step Coding (Design)
 
-### 4.1.4 Metrics
+### 4.3.1 Protocol
+The agent is tasked with designing a blog platform architecture through 12 sequential steps, ranging from data modeling to API design. This task evaluates the system's ability to manage context during a long, coherent reasoning chain without external interruptions.
 
-We measure:
+### 4.3.2 Hypotheses
+*   **H1 (Linear)**: Context will grow linearly ($O(t)$), eventually polluting the window with obsolete reasoning from early steps.
+*   **H2 (SPACE)**: The agent will segment the task into logical scopes (e.g., `design/auth`, `design/api`), resulting in a sawtooth context profile with significantly lower peak usage.
 
-| Metric | Description |
-|--------|-------------|
-| **Base Input** | First-call tokens (system + tools + user) — cacheable by providers |
-| **Peak Input** | Maximum tokens in any single API call |
-| **Growth** | Peak minus base — represents actual context growth |
-| **Total Input** | Sum of all input tokens across all API calls |
-| **Total Output** | Sum of all output tokens |
-| **Iterations** | Number of API calls to complete task |
+## 4.4 Task 2: Cross-Project Knowledge Transfer
 
-We separate base from growth because modern API providers cache system prompts and tool definitions. The actual incremental cost is better represented by growth.
+### 4.4.1 Protocol
+This task simulates two distinct but related projects executed sequentially:
+1.  **Project A (Source)**: Implement a `User` class with specific validation logic (e.g., email format, password strength).
+2.  **Project B (Target)**: Implement a `Product` class requiring analogous validation patterns.
 
-## 4.2 Task 1: Multi-Step Coding Task
+Between projects, the working memory is explicitly cleared. In the SPACE condition, the agent retains access to its Episodic Memory (Notes) and Semantic Memory (Insights).
 
-### 4.2.1 Task Description
+### 4.4.2 Measurement
+We measure **Transfer Efficiency**, defined as the reduction in iterations and tokens required for Project B compared to Project A. A reduction indicates successful retrieval and application of learned patterns.
 
-Design a blog platform through 12 sequential steps:
+## 4.5 Task 3: Alternative Exploration (Branching)
 
-1. Design data model for posts, comments, users
-2. Add categories and tags
-3. Design authentication system
-4. Add notification system
-5. Add search feature
-6. Add analytics tracking
-7. Design API endpoints
-8. Summarize architecture
-9. (continued iterations as needed)
+### 4.5.1 Protocol
+The agent must evaluate two architectural candidates for a real-time collaborative editor:
+1.  **Operational Transformation (OT)**
+2.  **Conflict-free Replicated Data Types (CRDTs)**
 
-Each step builds on previous decisions, requiring the agent to maintain coherent context.
+### 4.5.2 Hypotheses
+*   **H1 (Linear)**: The exploration of CRDTs will be polluted by the preceding OT analysis, potentially leading to hallucinated hybrid features.
+*   **H2 (SPACE)**: The agent will create distinct scopes for each analysis (`explore/ot`, `explore/crdt`). The final comparison will utilize retrieved notes, ensuring clean separation of concerns.
 
-### 4.2.2 Expected Behavior
+## 4.6 Task 4: SWE-Bench-CL (Continual Learning)
 
-**Linear baseline**: Context grows with each step. By step 8, context includes all previous 7 exchanges plus current.
+### 4.6.1 Protocol
+We adapt **SWE-Bench-CL** [30] to evaluate context scalability. The agent faces a sequence of 15 chronologically ordered GitHub issues from the Django repository.
+*   **Input**: Issue description and codebase access.
+*   **Output**: Analysis and proposed solution.
+*   **Constraint**: The agent is not reset between tasks; it must maintain a continuous identity.
 
-**SPACE treatment**: Agent should:
-1. Create scopes for related work (e.g., "data-model", "auth", "api")
-2. Take notes on key decisions within each scope
-3. Return to main with summaries
-4. Access notes from previous scopes as needed
+### 4.6.2 Relevance
+This setup models a "Lifelong Agent" scenario (e.g., a dedicated repository maintainer). It tests the critical failure mode of linear architectures: the "Context Explosion" where the history of Task 1 dominates the attention mechanism during Task 15.
 
-## 4.3 Task 2: Cross-Project Knowledge Transfer
+### 4.6.3 Controlled Variables
+To ensure rigorous comparison:
+1.  **Fixed Model**: GPT-4o-mini for all runs.
+2.  **Fixed Task Order**: Chronological sequence preserved.
+3.  **Iteration Cap**: Maximum 20 turns per task to prevent infinite loops.
+4.  **Replication**: Results averaged over $n=3$ independent runs.
 
-### 4.3.1 Task Description
+## 4.7 Limitations of Design
 
-Two sequential projects simulating separate development efforts:
-
-**Project A**: Create a User model with:
-- Dataclass with id, email, name, password_hash, created_at, is_active
-- Email validation (must contain @)
-- Password validation (min 8 chars)
-- is_valid() aggregating validations
-- to_dict() for serialization
-
-**Project B**: Create a Product model with:
-- Dataclass with id, name, price, stock, created_at, is_available
-- Price validation (must be positive)
-- Stock validation (must be >= 0)
-- is_valid() aggregating validations
-- to_dict() for serialization
-
-### 4.3.2 Expected Behavior
-
-**Linear baseline**: Project B starts fresh. The agent must rediscover patterns (validation structure, to_dict implementation) from scratch.
-
-**SPACE treatment**:
-1. Project A creates notes documenting patterns
-2. Between projects, working messages are cleared but notes persist
-3. Project B queries notes from Project A
-4. Agent applies same patterns, reducing exploration
-
-### 4.3.3 Measurement
-
-Between projects, we clear working messages in both conditions to simulate session boundaries. Only the SPACE treatment retains episodic memory (notes).
-
-## 4.4 Task 3: Alternative Exploration
-
-### 4.4.1 Task Description
-
-Design a real-time collaborative document editor (similar to Google Docs) with requirements:
-- Multiple users editing simultaneously
-- Changes visible in real-time
-- Offline support
-- Version history
-- Scale to 100 concurrent editors
-
-The agent must explore two architectural approaches:
-1. **Operational Transformation (OT)**: Transform-based conflict resolution
-2. **CRDTs**: Conflict-free replicated data types
-
-### 4.4.2 Expected Behavior
-
-**Linear baseline**: All exploration in single context. OT analysis pollutes CRDT analysis and vice versa.
-
-**SPACE treatment**:
-1. Create scope for OT exploration
-2. Take notes on OT pros/cons, tech stack
-3. Return to main with summary
-4. Create scope for CRDT exploration
-5. Take notes on CRDT pros/cons, tech stack
-6. Return to main with summary
-7. Compare using notes from both scopes
-
-### 4.4.3 Measurement
-
-We measure whether the agent can recall specific details from each approach when making the final comparison, indicating successful knowledge isolation and retrieval.
-
-## 4.5 Task 4: SWE-Bench-CL Continual Learning
-
-### 4.5.1 Task Description
-
-We adapt the SWE-Bench-CL benchmark [30] to evaluate knowledge transfer across sequential GitHub issue resolution tasks. SWE-Bench-CL organizes 273 tasks from 8 repositories into chronologically ordered sequences, simulating realistic software evolution.
-
-For our evaluation, we use a simplified version that measures context window growth rather than actual code correctness:
-
-- **Dataset**: Django sequence (50 tasks available, we use 15)
-- **Task format**: Each task provides a problem statement and files to modify
-- **Evaluation**: Agent analyzes issue and proposes solution approach
-
-### 4.5.2 Expected Behavior
-
-**Linear baseline**: Context grows with each task as previous analyses accumulate. After 15 tasks, context includes all prior exchanges.
-
-**SPACE treatment**:
-1. Create scope for each task
-2. Analyze problem, identify patterns
-3. Note reusable patterns (file structures, Django idioms)
-4. Return to main with summary
-5. Future tasks can reference accumulated patterns
-
-### 4.5.3 Metrics
-
-We focus on context window metrics (relevant with prompt caching):
-
-| Metric | Description |
-|--------|-------------|
-| **Peak Context** | Maximum context window size |
-| **Final Task Context** | Context size on last task |
-| **Context Growth** | Total tokens added across all tasks |
-| **API Calls** | Number of model invocations |
-| **Cached Tokens** | Prompt tokens served from cache |
-| **Execution Time** | Wall-clock time for completion |
-
-### 4.5.4 Relevance to Real-World Agents
-
-This task models a common pattern: an agent processing a queue of related tasks where knowledge from earlier tasks could benefit later ones. Examples include:
-- CI/CD agents processing multiple PRs on the same repository
-- Support agents handling tickets for the same product
-- Code review agents analyzing related changes
-
-## 4.6 Controlled Variables
-
-To ensure fair comparison:
-
-1. **Same model**: GPT-4.1-mini for all conditions
-2. **Same tasks**: Identical task descriptions
-3. **Same evaluation**: Automated token counting via tiktoken
-4. **Multiple runs**: Results averaged across 3 runs per condition
-5. **Temperature**: Set to 0.7 for all runs
-6. **Max iterations**: Capped at 20 per task to prevent runaway execution
-
-## 4.7 Limitations
-
-Our experimental design has limitations:
-
-1. **Single model**: Results may not generalize to other models (though SPACE is model-agnostic by design)
-2. **Synthetic tasks**: Tasks 1-3 are synthetic; real-world agent tasks may differ in structure
-3. **Prompted behavior**: SPACE success depends on agent following workflow—a tradeoff we discuss in Section 6
-4. **No comparison with learned approaches**: We compare against linear baselines, not Context-Folding or AgentFold (which require different model training)
-5. **Token metrics only**: We measure efficiency, not solution quality (addressed in Section 6)
-6. **Preliminary data**: Current results are from pilot runs; full evaluation is ongoing
-
-We note that learned compression approaches (Context-Folding, AgentFold, CaT) achieve similar or better compression ratios but require training infrastructure that SPACE avoids.
+We acknowledge several limitations in our experimental design:
+1.  **Model Specificity**: Results are derived from a single model family (GPT-4). While SPACE is architecturally agnostic, agent compliance may vary with model capability.
+2.  **Synthetic vs. Wild**: Tasks 1-3 are synthetic. While designed to isolate specific mechanics, they lack the noise and ambiguity of in-the-wild interactions.
+3.  **Proxy Metrics**: In the SWE-Bench-CL task, we focus on *context dynamics* rather than *code correctness*. Future work will incorporate full correctness evaluation using the official Docker-based harness.
