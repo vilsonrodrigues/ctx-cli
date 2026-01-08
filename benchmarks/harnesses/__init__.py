@@ -7,6 +7,8 @@ Each harness provides integration with an official benchmark:
 - appworld: AppWorld multi-app environment
 - osworld: OSWorld desktop automation
 - the_agent_company: TheAgentCompany workplace simulation
+- browsecomp_plus: BrowseComp-Plus deep research
+- gaia: GAIA general AI assistants
 """
 
 # Harness implementations are loaded on-demand to avoid import errors
@@ -54,6 +56,13 @@ AVAILABLE_HARNESSES = {
         "description": "GAIA - General AI assistants benchmark with multi-step reasoning",
         "type": "long_horizon",
         "requires": ["huggingface"],
+    },
+    "browsecomp-plus": {
+        "module": "benchmarks.harnesses.browsecomp_plus",
+        "class": "BrowseCompPlusHarness",
+        "description": "BrowseComp-Plus - Deep research with 830 complex queries and 100K documents",
+        "type": "long_horizon",
+        "requires": ["huggingface", "datasets"],
     },
 }
 
