@@ -6,14 +6,9 @@ Yet a fundamental tension undermines this promise: **context windows are finite,
 
 ## 1.1 The Context Growth Problem
 
-Consider an agent tasked with resolving a sequence of GitHub issues in a codebase. Each issue builds on knowledge from previous fixes: code patterns discovered, API conventions learned, architectural constraints identified. In a traditional agent loop, every interaction persists in context.
+Consider an agent tasked with resolving a sequence of GitHub issues in a codebase. Each issue builds on knowledge from previous fixes: code patterns discovered, API conventions learned, architectural constraints identified. In a traditional agent loop, every interaction persists in context. For a sequence of 15 coding tasks from SWE-Bench-CL [20], we observe context growing to over 12,000 tokens by the final task, with linear approaches accumulating context at ~780 tokens per task.
 
-For a sequence of 15 coding tasks from SWE-Bench-CL [20], we observe context growing to over 12,000 tokens by the final task, with linear approaches accumulating context at ~780 tokens per task. As context grows:
-
-1. **Token costs scale** linearly with context size.
-2. **Latency increases** as models process longer inputs.
-3. **Attention dilutes** across increasingly irrelevant historical content.
-4. **Overflow risk** emerges as context approaches model limits.
+This unbounded accumulation creates a cascade of systemic failures. First, **token costs scale linearly**, imposing a prohibitive financial burden on long-running operations. Second, **latency increases** as models must process longer inputs for every subsequent inference step, slowing down the feedback loop. More critically, **attention dilutes** across increasingly irrelevant historical content; as the context window fills with noise from previous tasks, the model's ability to retrieve specific, relevant information degrades [4, 5]. Finally, the inevitable **overflow risk** emerges as context approaches model limits, forcing arbitrary truncation that can sever critical reasoning chains.
 
 When context is eventually truncated—whether by model limits or explicit pruning—the agent loses track of what it learned, what decisions it made, and why. This "context amnesia" forces agents to rediscover information or make inconsistent decisions, undermining the coherence that distinguishes agents from stateless models.
 
