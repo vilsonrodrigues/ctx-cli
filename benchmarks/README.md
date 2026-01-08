@@ -142,6 +142,14 @@ uv run benchmarks/retrieval/run_locomo_semantic.py
 uv run benchmarks/run_memoryagentbench.py --sub-dataset AR
 ```
 
+### Planned Benchmarks (Future Work)
+
+The following benchmarks are under consideration for integration, following their usage in the **Confucius Code Agent (CCA)** paper [arXiv:2512.10398]:
+
+*   **SWE-Bench-Pro**: A larger dataset (731 tasks) for evaluating scalable coding agents.
+*   **PyTorch-Bench**: A custom benchmark for large-scale debugging workflows.
+*   **SWE-Bench-Verified**: Already partially covered by SWE-Bench-CL, but direct integration is planned.
+
 ## Evaluation Sizes
 
 | Size | Tasks | Use Case |
