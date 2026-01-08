@@ -1,130 +1,106 @@
-# ctx-cli
+# ctx-cli: Explicit Context Management (ECM)
 
-**Explicit Context Management (ECM)** for LLM Agents.
-A memory architecture that decouples *reasoning history* from *knowledge retention*.
+**SPACE Architecture** (Self-Partitioned Agent Context Environment).
+A **Cognitive Stabilization System** for long-running LLM agents.
 
-## The Problem: Context Saturation & Drift
+> *"Explicit Context Management reframes test-time compute from unstructured token expenditure into a sequence of explicit, irreversible cognitive state transitions."*
 
-As LLM agents work on long tasks, their context window fills up with:
-1.  **Noise:** Typos, failed attempts, and verbose tool outputs.
-2.  **Episodic History:** Every interaction remains "active," confusing the model about what is currently relevant.
+---
 
-This leads to **Context Drift** (forgetting instructions) and **Exponential Cost**.
+## ⚡ Key Results (SWE-Bench-CL)
 
-## The Solution: Tiered & Pull-Based Memory
+| Metric | Linear Agent | SPACE Agent | Impact |
+| :--- | :--- | :--- | :--- |
+| **Peak Context** | 12,059 tokens | **1,402 tokens** | **-88% Attention Load** |
+| **Growth Rate** | O(n) Quadratic Cost | **O(1) Constant Cost** | **Infinite Horizons** |
+| **Execution Time** | 121.5s | **80.5s** | **34% Faster** |
+| **Cognitive State** | Drifts / Ruminates | **Stabilized** | **Anti-Hallucination** |
 
-`ctx-cli` implements a memory system inspired by Endel Tulving's theory of human memory:
+---
 
-*   **Working Memory (RAM):** Ephemeral conversation messages. Automatically cleared when switching scopes.
-*   **Episodic Memory (Journal):** A chronological, persistent log of technical events and findings (`notes`).
-*   **Semantic Memory (Facts):** A global, persistent repository of architectural rules and discovered patterns (`insights`).
+## The Problem: "Cognitive Waste"
 
-**Key Innovation:** Memory is **Pull-Based**. The agent starts with a clean slate and *deliberately* calls tools to load specific memories into its working context.
+Modern agents (especially those using Reasoning Models like o1) suffer from a paradox:
+1.  **Thinking costs tokens:** Complex problems require long Chain-of-Thought (CoT) traces.
+2.  **Context is finite:** Keeping these traces fills the window with "cognitive waste"—intermediate errors and dead ends.
+3.  **Attention Dilution:** As context fills, the model "forgets" initial instructions and "ruminates" on past errors visible in history.
+
+## The Solution: SPACE
+
+`ctx-cli` implements **SPACE**, an architecture that treats context as **Versioned State**, not a chat log.
+
+### 1. Structured Test-Time Compute
+Instead of letting the model think indefinitely in a linear stream, SPACE enforces **Compute Budgets** via Scopes.
+*   **Scope:** An isolated environment for reasoning. The agent "checks out" a branch to think.
+*   **Return:** A forced **Cognitive Commit**. The agent *must* summarize its decision and discard the raw thought process.
+
+### 2. Anti-Rumination Mechanism
+When an agent leaves a scope (`return`), the raw messages (including errors and failed tool calls) are **physically deleted** from the working memory.
+*   **Effect:** The agent cannot "ruminate" on past failures because they no longer exist in its perceptual field. Only the distilled lesson (`note`) remains.
+
+---
+
+## Architecture: The Graph
+
+SPACE replaces the stack (LIFO) with a **Graph Navigation** model.
+
+```
+        ┌─── research/approach-A ───┐
+main ───┼─── research/approach-B    │  (Free Navigation)
+        └─── implement/chosen ──────┘
+```
+
+1.  **Main:** The stable core. Contains high-level decisions and the "head" of the project.
+2.  **Scopes:** Ephemeral workspaces. Created for specific tasks (`fix/auth-bug`, `plan/migration`).
+3.  **Notes:** The edges of the graph. Information preserved across transitions.
 
 ---
 
 ## Command Reference
 
-### 1. Context Switching
-Manage the agent's active reasoning space.
+### Navigation (The "Where")
 
 *   **`scope <name> -m "<reason>"`**
-    *   Creates a new reasoning scope (branch) and switches to it.
-    *   **Rule:** ONLY valid from the `main` scope.
-    *   Best Practice: Use Git-style namespaces like `plan/task-x`, `fix/issue-y`.
+    *   **Action:** Create & Enter a new workspace.
+    *   **Semantics:** "I am allocating a budget to think about X."
+    *   *Rule:* Only valid from `main`.
 *   **`return -m "<summary>"`**
-    *   Finalizes the current scope and returns to `main`.
-    *   **Rule:** ONLY valid from inside a scope.
-    *   **Effect:** The scope is closed permanently (notes persist, messages are discarded).
-*   **`status`**
-    *   Shows current scope, all scopes (grouped by project), and memory stats with action hints.
+    *   **Action:** Finalize & Destroy current workspace.
+    *   **Semantics:** "I have decided Y. Discard the process."
+    *   *Effect:* Working memory is wiped. Summary is saved to `main`.
+*   **`goto <name> -m "<reason>"`**
+    *   **Action:** Switch between existing scopes.
+    *   **Semantics:** "I need to compare findings in X with Y."
 
-### 2. Knowledge Persistence
-Save technical knowledge before clearing the context.
+### Persistence (The "What")
 
-*   **`note -m "<message>"`** (Episodic)
-    *   Scope: Local to the current scope.
-    *   Usage: Record specific technical details, file paths, or intermediate results.
-    *   **Tip:** Use this often. Notes are your only memory after `return`.
-*   **`insight -m "<message>"`** (Semantic)
-    *   Scope: Global. Visible from any scope.
-    *   Usage: Record project-wide rules, architecture patterns, or universal truths discovered.
+*   **`note -m "<fact>"`** (Episodic)
+    *   **Storage:** Local to current scope.
+    *   **Use Case:** "Test failed at line 42", "File path is /src/app.py".
+*   **`insight -m "<pattern>"`** (Semantic)
+    *   **Storage:** Global (visible everywhere).
+    *   **Use Case:** "The project uses Factory Pattern for all DAOs."
 
-### 3. Memory Retrieval (The "Pull")
-Load knowledge into working memory only when needed.
+### Inspection (The "Meta")
 
-*   **`notes`** — Returns all episodic notes from all scopes.
-*   **`notes <scope>`** — Returns notes from a specific scope.
-*   **`insights`** — Returns all global semantic insights.
+*   **`status`** — Show current scope, memory stats, and available actions.
+*   **`notes`** — Read the episodic journal.
+*   **`insights`** — Read global knowledge.
 
 ---
 
-## Project Management (Developer API)
+## Workflow Example
 
-For multi-project workflows, developers can use the `new_project()` API:
+The agent doesn't just "chat"; it **navigates**:
 
-```python
-from ctx_store import ContextStore
-
-store = ContextStore()
-# ... agent works on Project A ...
-
-store.new_project("project-b")  # Developer calls this
-# - Marks existing scopes as "previous project"
-# - Clears main working messages (notes preserved)
-# - Agent can still access previous project's notes via `notes <scope>`
-```
-
-The `status` command shows scopes grouped by project:
-
-```
-On scope: product-model
-Working messages: 0
-
-Current Project: ecommerce-api
-  Scopes:
-    - main
-    ● product-model (1 notes)
-
-Previous Projects:
-  [auth-service]
-    Scopes:
-      - user-model (1 notes)
-
-Memory:
-  Insights: 1
-  Notes: 2
-
-Actions:
-  note -m "..."       Record to current scope (Persists)
-  return -m "..."     Finalize scope & return to main
-  notes               Recall all episodic memory
-  insights            Recall semantic memory
-```
-
----
-
-## Strategic Workflow: The Planning Loop
-
-1.  **Check Status:** `status` — See available scopes and memory
-2.  **Pull Knowledge:** `notes`, `insights` — Load relevant context
-3.  **Open Scope:** `scope plan/fix-auth -m "Reasoning about auth bug"`
-4.  **Synthesize:** Reasoning happens in this clean, isolated space
-5.  **Record:** `note -m "..."` — Save what you learned (CRITICAL)
-6.  **Return:** `return -m "Plan ready: use strategy X"` — Context is cleared, summary stored in main
-
----
-
-## Token Economics
-
-**Benchmark: SWE-bench-CL (Django Sequence)**
-
-| Metric | Standard Linear Agent | ECM Agent (ctx-cli) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Input Token Growth** | O(n) (Monotonic) | O(1) (Sawtooth) | **Constant Cost** |
-| **Peak Context** | 35,000+ tokens | ~2,500 tokens | **-92%** |
-| **Latency** | 60s+ per turn | ~1.5s per turn | **40x Faster** |
-| **Reliability** | Drops as context grows | Remains stable | **Long-Term** |
+1.  **Main:** `scope plan/db-migration -m "Analyze schema changes"`
+2.  **Scope (plan/db-migration):**
+    *   *Reads files... (5000 tokens)*
+    *   *Thinks... (2000 tokens)*
+    *   `note -m "Strategy: Use Alembic for auto-generation"`
+    *   `return -m "Plan approved. Use Alembic."`
+3.  **Main:** (Context is clean. Only the note exists.)
+    *   `scope act/execute-migration -m "Running Alembic"`
 
 ---
 
@@ -134,7 +110,19 @@ Actions:
 pip install ctx-cli
 ```
 
+## Citation
+
+If you use SPACE in your research, please cite our paper:
+
+```bibtex
+@article{ctx-cli2026,
+  title={Explicit Context Management for Long-Horizon Agents},
+  author={Rodrigues, Vilson},
+  journal={arXiv preprint},
+  year={2026}
+}
+```
+
 ## License
 
 MIT
-
