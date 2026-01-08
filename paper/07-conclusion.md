@@ -3,9 +3,9 @@
 We presented Explicit Context Management (ECM), a training-free approach to handling context window limits in long-running language model agents. By treating conversation context as versioned state, we enable agents to deliberately control what information persists through a minimal command interface: navigation (`scope`, `goto`), persistence (`note`, `insight`), and inspection (`notes`, `insights`, `status`, `scopes`).
 
 The key technical contributions are:
-1. **Graph-based scope navigation**: Unlike stack-based approaches (Context-Folding's `branch/return`), agents can freely traverse between any existing scopes
+1. **Radial scope navigation**: Implementing a hub-and-spoke model where agents isolate reasoning in temporary scopes and consolidate results in the main context
 2. **Three-tier memory architecture**: Working memory (ephemeral), episodic memory (scope-local notes), and semantic memory (global insights)
-3. **Asymmetric note placement**: Departure notes stay in origin, arrival notes go to destination, preserving causal narrative
+3. **Cognitive Commit semantics**: Return commands force a summarized conclusion, preventing rumination
 
 Our experiments on SWE-Bench-CL [30] demonstrate:
 - **88% reduction in peak context** (12,059 → 1,402 tokens) for sequential tasks
@@ -17,10 +17,10 @@ These results are achieved with **no fine-tuning**, **no reinforcement learning*
 
 ## Contributions
 
-1. A **minimal, training-free command interface** for explicit context management
-2. **Graph-based scope navigation** enabling non-linear exploration patterns
+1. **SPACE: A minimal, training-free command interface** for self-partitioned context management
+2. **Radial scope navigation** enabling isolated exploration with forced consolidation
 3. **Three-tier memory architecture** differentiating working, episodic, and semantic memory
-4. **Asymmetric note placement** semantics preventing reasoning gaps
+4. **Transition semantics** that enforce cognitive commits via return summaries
 5. **Empirical validation** on SWE-Bench-CL demonstrating 88% context reduction
 6. A **model-agnostic, open-source implementation** for practical deployment
 

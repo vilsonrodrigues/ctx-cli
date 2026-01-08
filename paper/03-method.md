@@ -44,12 +44,12 @@ Unlike traditional memory systems that inject history automatically, ECM adopts 
 
 ## 3.4 Command Interface
 
-The model interacts with C through a structured tool interface implementing graph-based navigation.
+The model interacts with C through a structured tool interface implementing radial navigation.
 
 | Command | Logical Operation | Tier | Effect |
 |---------|-------------------|------|--------|
-| `scope <name> -m "..."` | Create S_new, goto S_new | Working | Creates and enters a new reasoning space |
-| `goto <name> -m "..."` | Navigate to S_target | Working | Switches to existing scope |
+| `scope <name> -m "..."` | Create S_new, enter S_new | Working | Creates and enters a new reasoning space |
+| `return -m "..."` | Finalize S, goto Main | Working | Closes scope, saves summary, returns to main |
 | `note -m "..."` | N_S ← n_new | Episodic | Records event in current scope |
 | `insight -m "..."` | I ← i_new | Semantic | Records global knowledge |
 | `notes [scope]` | Output N_scope or N_all | Episodic | Retrieves episodic memory |
@@ -57,44 +57,30 @@ The model interacts with C through a structured tool interface implementing grap
 | `status` | Output state | Meta | Shows current scope, message count, memory stats |
 | `scopes` | Output all S | Meta | Lists all existing scopes |
 
-### 3.4.1 Graph-Based Navigation
+### 3.4.1 Radial Scope Navigation
 
-Unlike stack-based approaches (Context-Folding's `branch/return`), ECM implements **graph-based navigation**. Scopes form a directed graph where:
-- Any scope can be created from any other scope
-- Navigation via `goto` can target any existing scope, regardless of creation order
-- There is no enforced parent-child hierarchy or LIFO constraint
-
-This enables exploration patterns impossible with stack-based systems:
+SPACE implements a **radial navigation topology** (Hub-and-Spoke). The `main` scope acts as the stable center of cognition, while temporary scopes branch off to handle specific sub-tasks.
 
 ```
-        ┌─── research/approach-A ───┐
-main ───┼─── research/approach-B    │ (free navigation)
-        └─── implement/chosen ──────┘
+        ┌─── research/approach-A
+main ───┼─── research/approach-B
+        └─── implement/chosen
 ```
 
-An agent can explore `research/approach-A`, switch to `research/approach-B` without completing A, return to A for additional investigation, and finally implement the chosen approach—all without the constraints of hierarchical decomposition.
+This topology enforces **Cognitive Discipline**:
+- **Strict Isolation:** Scopes cannot communicate directly. All information transfer must pass through `main` via `return` summaries.
+- **Cognitive Reset:** Returning to `main` clears the working memory, preventing "rumination" on the messy details of the sub-task.
+- **Forced Consolidation:** The agent cannot simply jump between tasks; it must explicitly summarize (commit) its findings before switching contexts.
 
-### 3.4.2 Asymmetric Note Placement
+### 3.4.2 Transition Semantics
 
-Scope transitions require mandatory notes that follow **asymmetric placement semantics**:
+Transitions follow a strict protocol to ensure causal continuity:
 
-**On `scope` (departure):** The `-m` message becomes a **departure note** stored in the *origin* scope, documenting why the agent is leaving and what it intends to do.
+**On `scope` (Departure):** The `-m` message becomes a **departure note** stored in the `main` scope, documenting the *intent* of the new branch (e.g., "Investigating auth bug").
 
-**On `goto` (arrival):** The `-m` message becomes an **arrival note** stored in the *destination* scope, summarizing what was accomplished and why the agent is returning.
+**On `return` (Arrival):** The `-m` message becomes a **summary note** stored in the `main` scope, documenting the *outcome* of the closed branch (e.g., "Fixed auth bug by adding null check").
 
-This asymmetry preserves causal narrative across disjoint memory spaces:
-
-```
-scope: main
-  note: "Going to investigate auth bug in user.py:142"
-
-scope: fix/auth-bug
-  [... working memory with investigation ...]
-  note: "Root cause: missing null check. Fix applied."
-
-scope: main (after goto)
-  note: "Auth bug fixed. Null check added to user.py:142"
-```
+This ensures that the `main` scope contains a high-level log of intents and outcomes, while the detailed execution history is encapsulated (and eventually discarded) within the sub-scopes.
 
 ### 3.4.3 The Planning Workflow
 

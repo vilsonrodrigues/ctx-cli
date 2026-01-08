@@ -14,7 +14,7 @@ In linear contexts, past errors and failed attempts remain visible, acting as "a
 
 ### 6.1.2 Qualitative Analysis of Note-Taking Behavior
 
-Observation of the agent's logs revealed that the model utilized the `note` and `goto main` commands not merely as protocol overhead, but as a technical serialization layer. For instance, in the Django tasks, the agent consistently recorded file paths and specific method changes (e.g., "Implemented __iter__ in Paginator class") before clearing its working memory. While the current benchmark tasks were largely independent, this behavior suggests that SPACE successfully converts high-entropy conversational data into low-entropy structural knowledge, which is essential for long-term consistency in complex engineering projects.
+Observation of the agent's logs revealed that the model utilized the `note` and `return` commands not merely as protocol overhead, but as a technical serialization layer. For instance, in the Django tasks, the agent consistently recorded file paths and specific method changes (e.g., "Implemented __iter__ in Paginator class") before clearing its working memory. While the current benchmark tasks were largely independent, this behavior suggests that SPACE successfully converts high-entropy conversational data into low-entropy structural knowledge, which is essential for long-term consistency in complex engineering projects.
 
 ### 6.1.3 Cognitive Semantics Alignment
 
@@ -57,23 +57,23 @@ Our results (88% context reduction) are comparable to learned approaches: Contex
 | Context-Folding | RL (FoldGRPO) | Stack | No | No (Seed-36B) |
 | AgentFold | SFT | Linear | No | No (Qwen-30B) |
 | CaT | SFT (20K samples) | Linear | No | No (Qwen-32B) |
-| **ECM** | **None** | **Graph** | **Yes (insights)** | **Yes (any model)** |
+| **SPACE** | **None** | **Radial** | **Yes (insights)** | **Yes (any model)** |
 
-ECM trades potential compression efficiency for three properties learned approaches lack:
+SPACE trades potential compression efficiency for three properties learned approaches lack:
 
 1. **Zero training overhead**: Deploy immediately with GPT-4, Claude, Gemini, or open-source models
-2. **Graph navigation**: Explore alternatives non-linearly, unlike stack-based branch/return
+2. **Radial navigation**: Isolated exploration with forced consolidation
 3. **Semantic memory**: Insights provide global knowledge transfer unavailable in compression-only systems
 
 ## 6.4 Future Domains: OSWorld and Desktop Agents
 
-While this study focused on software engineering, ECM is highly applicable to general-purpose desktop agents. Benchmarks like **OSWorld** [36], which require agents to perform long-horizon tasks across multiple applications (e.g., "find the invoice in emails, save it to Documents, and upload it to the accounting web portal"), suffer acutely from context saturation. An ECM-enabled agent could dedicate a scope to `email-search`, collapse it into a note ("Invoice found at path X"), and then open a clean `web-portal` scope, preventing the noisy HTML of the web page from polluting the context needed for file navigation.
+While this study focused on software engineering, SPACE is highly applicable to general-purpose desktop agents. Benchmarks like **OSWorld** [36], which require agents to perform long-horizon tasks across multiple applications (e.g., "find the invoice in emails, save it to Documents, and upload it to the accounting web portal"), suffer acutely from context saturation. A SPACE-enabled agent could dedicate a scope to `email-search`, collapse it into a note ("Invoice found at path X"), and then open a clean `web-portal` scope, preventing the noisy HTML of the web page from polluting the context needed for file navigation.
 
 The three-tier memory system is particularly valuable here: an insight like "user prefers dark mode in all applications" persists globally, while notes like "invoice PDF saved to ~/Documents/invoices/" remain scope-local.
 
 ## 6.5 Convergence with Recursive Architectures
 
-The emergence of Recursive Language Models (RLM) [31] validates the paradigm of "context management via code execution." However, RLM relies on the model writing complex Python scripts to manage state, which introduces significant latency (synchronous blocking calls) and requires frontier-class models (>400B parameters) to function reliably. ECM democratizes this capability by providing a high-level CLI abstraction. By shifting the complexity from *generation* (writing memory code) to *selection* (calling memory tools), ECM achieves similar context isolation benefits with drastically lower latency (~1.5s vs RLM's multi-minute trajectories) and compatibility with smaller, faster models like `gpt-4o-mini`.
+The emergence of Recursive Language Models (RLM) [31] validates the paradigm of "context management via code execution." However, RLM relies on the model writing complex Python scripts to manage state, which introduces significant latency (synchronous blocking calls) and requires frontier-class models (>400B parameters) to function reliably. SPACE democratizes this capability by providing a high-level CLI abstraction. By shifting the complexity from *generation* (writing memory code) to *selection* (calling memory tools), SPACE achieves similar context isolation benefits with drastically lower latency (~1.5s vs RLM's multi-minute trajectories) and compatibility with smaller, faster models like `gpt-4o-mini`.
 
 ## 6.6 Limitations
 
@@ -91,7 +91,7 @@ Deciding when to create a new scope vs. continue in the current scope is a judgm
 
 ### 6.6.4 No Learned Optimization
 
-Unlike Context-Folding and AgentFold, ECM does not learn optimal compression points. Agents must explicitly decide when to transition—a burden that learned approaches automate. We view this as an acceptable tradeoff for training-free deployment and model portability.
+Unlike Context-Folding and AgentFold, SPACE does not learn optimal compression points. Agents must explicitly decide when to transition—a burden that learned approaches automate. We view this as an acceptable tradeoff for training-free deployment and model portability.
 
 ## 6.7 Design Decisions
 
@@ -101,7 +101,7 @@ An earlier version included a `rewind` command. We removed it based on the princ
 
 ### 6.7.2 Why Asymmetric Note Placement?
 
-Asymmetric placement—origin for `scope`, destination for `goto`—emerged as optimal because `scope` notes explain **why leaving** (context stays with origin) and `goto` notes explain **what bringing** (results travel to destination).
+Asymmetric placement—origin for `scope` (departure), `main` for `return` (arrival)—emerged as optimal because `scope` notes explain **why leaving** (context stays with main) and `return` notes explain **what bringing back** (results act as a commit message).
 
 ### 6.7.3 Why Separate Notes and Insights?
 

@@ -85,28 +85,28 @@ Using **CaT-Generator**, an offline pipeline that injects context-management act
 
 ### 2.7.4 Comparative Analysis
 
-Table 2 contrasts these learned compression approaches with ECM:
+Table 2 contrasts these learned compression approaches with SPACE:
 
-| Dimension | Context-Folding | AgentFold | CaT | **ECM (Ours)** |
-|-----------|-----------------|-----------|-----|----------------|
+| Dimension | Context-Folding | AgentFold | CaT | **SPACE (Ours)** |
+|-----------|-----------------|-----------|-----|------------------|
 | Training Required | RL (FoldGRPO) | SFT | SFT (20K samples) | **None** |
-| Navigation Structure | Stack (branch/return) | Linear | Linear | **Graph (scope/goto)** |
+| Navigation Structure | Stack (branch/return) | Linear | Linear | **Radial (hub-and-spoke)** |
 | Compression Timing | Learned | Learned | Learned (3 signals) | **Explicit (transitions)** |
 | Semantic Memory | No | No | No | **Yes (insights)** |
-| Memory Persistence | Session-only | Session-only | Session-only | **Cross-session** |
+| Memory Persistence | Session-only | Session-only | Session-only | **Cross-session (notes)** |
 | Model-Agnostic | No | No | No | **Yes** |
 
-Three fundamental differences distinguish ECM from learned compression:
+Three fundamental differences distinguish SPACE from learned compression:
 
-**Stack vs. Graph Navigation.** Context-Folding's `branch/return` enforces LIFO ordering—an agent exploring alternatives A and B must complete B before returning to A. ECM's `scope/goto` implements **graph-based navigation**: an agent can freely move between `research/A`, `research/B`, and `main`, enabling non-linear exploration essential for comparing alternatives.
+**Persistent vs. Ephemeral Branches.** In Context-Folding, when a branch returns, its history is folded into a summary and the original trace is lost. In SPACE, while the working memory is cleared, the *episodic notes* created during the scope remain persistently accessible via `notes <scope>`. This allows the agent to revisit the *reasoning process* (via notes) of a closed scope, not just its conclusion.
 
-**Learned vs. Explicit Compression.** Folding approaches learn *when* to compress through training signals. ECM makes compression **explicit and deliberate**: the agent declares what matters at scope transitions through mandatory notes. This prospective approach captures the agent's current understanding rather than retrospectively summarizing what a compression model deems important.
+**Learned vs. Explicit Compression.** Folding approaches learn *when* to compress through training signals. SPACE makes compression **explicit and deliberate**: the agent declares what matters at scope transitions through mandatory notes. This prospective approach captures the agent's current understanding rather than retrospectively summarizing what a compression model deems important.
 
-**Ephemeral vs. Persistent Memory.** When Context-Folding executes `return(message)`, intermediate steps are destroyed—only the summary survives. ECM's notes remain **permanently accessible** via `notes [scope]`, enabling retrospective analysis and cross-task knowledge transfer. Furthermore, ECM's `insights` provide a semantic memory tier absent in all folding approaches.
+**Semantic Memory Tier.** All folding approaches focus on compressing the *episodic* stream. SPACE introduces a dedicated **Semantic Memory** (`insights`) that transcends individual scopes. An insight discovered in `fix/auth-bug` becomes immediately available in `feature/new-endpoint` without needing to retrieve the specific episodic context.
 
 ### 2.7.5 Other Compression Approaches
 
-**HiAgent** [3] decomposes tasks into subgoals with associated context chunks, achieving 35% context reduction without training. **ACON** [29] provides a universal agent context optimization framework supporting both history and observation compression, reducing memory usage by 26-54% while preserving task success. These approaches focus on compression mechanics rather than the navigation and memory structures that ECM provides.
+**HiAgent** [3] decomposes tasks into subgoals with associated context chunks, achieving 35% context reduction without training. **ACON** [29] provides a universal agent context optimization framework supporting both history and observation compression, reducing memory usage by 26-54% while preserving task success. These approaches focus on compression mechanics rather than the navigation and memory structures that SPACE provides.
 
 ## 2.8 Challenges in Long-Running Coding Agents
 
@@ -114,7 +114,7 @@ The specific domain of software engineering magnifies context challenges due to 
 
 State-of-the-art agents like **SWE-agent** [25] and **OpenDevin** [26] employ specialized interfaces to mitigate context usage (e.g., limiting file viewer output). However, they typically rely on aggressive context truncation or sliding windows. This creates a specific failure mode: **"Context Amnesia" during debugging**. When an agent runs a test suite that generates 5,000 lines of output, a sliding window might evict the *code change* that caused the error, leaving the agent with the symptom but no memory of the cause [25].
 
-**AutoCodeRover** [27] attempts to solve this via program analysis (AST parsing) to retrieve only relevant code slices. While effective for *code* retrieval, it does not solve the *reasoning* continuity problem. ECM addresses this gap: by isolating the "Debug" scope, an agent can generate massive test logs, extract the relevant error into a note, and return to the "Edit" scope with a clean context and a clear objective, preventing the test output from polluting the reasoning history.
+**AutoCodeRover** [27] attempts to solve this via program analysis (AST parsing) to retrieve only relevant code slices. While effective for *code* retrieval, it does not solve the *reasoning* continuity problem. SPACE addresses this gap: by isolating the "Debug" scope, an agent can generate massive test logs, extract the relevant error into a note, and return to the "Edit" scope with a clean context and a clear objective, preventing the test output from polluting the reasoning history.
 
 Table 1 summarizes the landscape of context management approaches:
 
@@ -127,23 +127,23 @@ Table 1 summarizes the landscape of context management approaches:
 | CaT [28] | Learned compression | SFT | 70% | Linear | No |
 | HiAgent [3] | Subgoal chunking | No | 35% | Hierarchical | No |
 | ACON [29] | History+Obs compression | No | 26-54% | Linear | No |
-| **ECM (Ours)** | **Scope Isolation** | **No** | **88%** | **Graph** | **Yes** |
+| **SPACE (Ours)** | **Scope Isolation** | **No** | **88%** | **Radial** | **Yes** |
 
 ## 2.9 Positioning Our Contribution
 
-ECM occupies a unique position in the design space of context management systems, distinguished by three orthogonal dimensions:
+SPACE occupies a unique position in the design space of context management systems, distinguished by three orthogonal dimensions:
 
 ### Training Requirements
 
-The recent wave of learned compression approaches—Context-Folding [2], AgentFold [1], and CaT [28]—achieve impressive results but require either reinforcement learning or supervised fine-tuning on thousands of trajectories. ECM demonstrates that **comparable context reduction (88%) is achievable with zero training**, making it immediately deployable with any tool-use capable model. This training-free property is shared only with MemGPT [13] and HiAgent [3], but ECM achieves superior reduction without external infrastructure.
+The recent wave of learned compression approaches—Context-Folding [2], AgentFold [1], and CaT [28]—achieve impressive results but require either reinforcement learning or supervised fine-tuning on thousands of trajectories. SPACE demonstrates that **comparable context reduction (88%) is achievable with zero training**, making it immediately deployable with any tool-use capable model. This training-free property is shared only with MemGPT [13] and HiAgent [3], but SPACE achieves superior reduction without external infrastructure.
 
 ### Navigation Topology
 
-Context-Folding's `branch/return` implements stack-based (LIFO) navigation—branches must complete before returning to parent contexts. AgentFold and CaT maintain linear context with periodic compression. ECM uniquely provides **graph-based navigation** through `scope/goto`, enabling non-linear exploration where an agent can freely traverse between any existing scopes. This topology mirrors how developers use Git branches: creating `research/approach-A` and `research/approach-B`, exploring each independently, and comparing findings without one polluting the other.
+Context-Folding's `branch/return` implements stack-based (LIFO) navigation. SPACE implements **radial (hub-and-spoke) navigation**. While topologically similar, the semantic difference lies in **state persistence**: SPACE's scopes leave behind a permanent trail of notes (episodic markers) that can be queried later, turning the execution graph into a navigable knowledge base, whereas folding approaches consume the graph into a linear summary.
 
 ### Memory Semantics
 
-All compression approaches—whether learned (Context-Folding, AgentFold, CaT) or heuristic (HiAgent, ACON)—focus exclusively on **episodic compression**: summarizing what happened. ECM introduces a **two-tier memory system**:
+All compression approaches—whether learned (Context-Folding, AgentFold, CaT) or heuristic (HiAgent, ACON)—focus exclusively on **episodic compression**: summarizing what happened. SPACE introduces a **two-tier memory system**:
 - **Episodic (notes)**: Scope-local records of specific events, preserved across transitions
 - **Semantic (insights)**: Global knowledge transcending individual scopes
 
@@ -153,13 +153,13 @@ This distinction enables knowledge transfer patterns impossible with pure compre
 
 The fundamental philosophical difference is **when** memory curation occurs:
 - **Retrospective (RAG/Mem0/Folding):** "After the fact, determine what was important."
-- **Prospective (ECM):** "At the moment of transition, declare what matters going forward."
+- **Prospective (SPACE):** "At the moment of transition, declare what matters going forward."
 
-This prospective approach leverages the agent's current understanding of its goals to create high-quality episodic markers *in the moment*, avoiding the information loss inherent in retrospective summarization. When an agent executes `goto main -m "Found root cause: missing null check in parser.py:142"`, it captures precisely the insight that motivated the transition—context that a compression model operating on raw logs might not preserve.
+This prospective approach leverages the agent's current understanding of its goals to create high-quality episodic markers *in the moment*, avoiding the information loss inherent in retrospective summarization. When an agent executes `return -m "Found root cause: missing null check in parser.py:142"`, it captures precisely the insight that motivated the transition—context that a compression model operating on raw logs might not preserve.
 
 ### Design Tradeoffs
 
-ECM's simplicity comes with explicit tradeoffs. Learned approaches can potentially achieve better compression ratios by identifying subtle redundancies humans might miss. Stack-based navigation (Context-Folding) enforces structured decomposition that may prevent certain errors. ECM accepts these tradeoffs in exchange for:
+SPACE's simplicity comes with explicit tradeoffs. Learned approaches can potentially achieve better compression ratios by identifying subtle redundancies humans might miss. Stack-based navigation (Context-Folding) enforces structured decomposition that may prevent certain errors. SPACE accepts these tradeoffs in exchange for:
 1. **Zero training overhead**: Deploy immediately with any model
 2. **Interpretable state**: All memory is human-readable and auditable
 3. **Flexible navigation**: Support exploration patterns beyond hierarchical decomposition

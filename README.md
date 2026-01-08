@@ -42,12 +42,12 @@ When an agent leaves a scope (`return`), the raw messages (including errors and 
 
 ## Architecture: The Graph
 
-SPACE replaces the stack (LIFO) with a **Graph Navigation** model.
+SPACE replaces the stack (LIFO) with a **Radial Navigation** model.
 
 ```
-        ┌─── research/approach-A ───┐
-main ───┼─── research/approach-B    │  (Free Navigation)
-        └─── implement/chosen ──────┘
+        ┌─── research/approach-A
+main ───┼─── research/approach-B
+        └─── implement/chosen
 ```
 
 1.  **Main:** The stable core. Contains high-level decisions and the "head" of the project.
@@ -68,9 +68,6 @@ main ───┼─── research/approach-B    │  (Free Navigation)
     *   **Action:** Finalize & Destroy current workspace.
     *   **Semantics:** "I have decided Y. Discard the process."
     *   *Effect:* Working memory is wiped. Summary is saved to `main`.
-*   **`goto <name> -m "<reason>"`**
-    *   **Action:** Switch between existing scopes.
-    *   **Semantics:** "I need to compare findings in X with Y."
 
 ### Persistence (The "What")
 
