@@ -59,3 +59,13 @@
 [35] Wang, Y., et al. (2025). MemoryBench: A Benchmark for Memory and Continual Learning in LLM Systems. *arXiv:2510.17281*.
 
 [36] Xie, T., et al. (2024). OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments. *NeurIPS*.
+
+[37] Wong, S., et al. (2025). Confucius Code Agent: Scalable Agent Scaffolding for Real-World Codebases. *arXiv:2512.10398*.
+
+[38] Wei, J., et al. (2022). Chain-of-Thought Prompting Elicits Reasoning in Large Language Models. *NeurIPS*.
+
+[39] Yao, S., et al. (2023). Tree of Thoughts: Deliberate Problem Solving with Large Language Models. *NeurIPS*.
+
+[40] Brown, T., et al. (2020). Language Models are Few-Shot Learners. *NeurIPS*.
+
+[41] Snell, C., et al. (2024). Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters. *arXiv*.
