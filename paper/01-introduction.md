@@ -2,7 +2,7 @@
 
 Language model agents have emerged as a compelling paradigm for automating complex, multi-step tasks. Unlike traditional prompt-response interactions, agents operate in extended loops—observing environments, taking actions, and reasoning over trajectories that may span hours or days [12]. From software development assistants to research copilots, these agents promise to transform how humans interact with AI systems.
 
-Yet a fundamental tension undermines this promise: **context windows are finite, but agent tasks can require unbounded reasoning**. As agents execute multi-step tasks, every message—user requests, assistant responses, tool invocations, and their results—accumulates in the conversation history. This creates linear context growth that eventually exceeds model limits or degrades performance through attention dilution [4, 5].
+Yet a fundamental tension undermines this promise: context windows are finite, but agent tasks can require unbounded reasoning. As agents execute multi-step tasks, every message—user requests, assistant responses, tool invocations, and their results—accumulates in the conversation history. This creates linear context growth that eventually exceeds model limits or degrades performance through attention dilution [4, 5].
 
 ## 1.1 The Context Growth Problem
 
