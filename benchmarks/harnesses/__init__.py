@@ -3,6 +3,7 @@ Official Harness Integrations for ECM Benchmarks.
 
 Each harness provides integration with an official benchmark:
 - swe_bench_cl: SWE-Bench Continual Learning
+- swe_bench_verified: SWE-Bench Verified (~500 curated tasks)
 - lifelong_agent_bench: LifelongAgentBench (DB/OS/KG)
 - appworld: AppWorld multi-app environment
 - osworld: OSWorld desktop automation
@@ -21,6 +22,13 @@ AVAILABLE_HARNESSES = {
         "description": "SWE-Bench Continual Learning - 273 sequential coding tasks",
         "type": "continual_learning",
         "requires": ["docker"],
+    },
+    "swe-bench-verified": {
+        "module": "benchmarks.harnesses.swe_bench_verified",
+        "class": "SWEBenchVerifiedHarness",
+        "description": "SWE-Bench Verified - ~500 curated GitHub issues with verified tests",
+        "type": "long_horizon",
+        "requires": ["docker", "huggingface", "datasets"],
     },
     "lifelong-agent-bench": {
         "module": "benchmarks.harnesses.lifelong_agent_bench",

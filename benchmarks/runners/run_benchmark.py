@@ -26,27 +26,33 @@ from benchmarks.core.metrics import CumulativeTokenReport
 SIZES = {
     "mini": {
         "swe-bench-cl": {"max_tasks": 5, "sequence": "django"},
+        "swe-bench-verified": {"max_tasks": 5},
         "lifelong-agent-bench": {"max_tasks": 10, "environment": "db"},
         "appworld": {"max_tasks": 5},
         "osworld": {"max_tasks": 5},
         "the-agent-company": {"max_tasks": 5, "role": None},
         "gaia": {"max_tasks": 10, "level": 1},
+        "browsecomp-plus": {"max_tasks": 5},
     },
     "small": {
         "swe-bench-cl": {"max_tasks": 15, "sequence": "django"},
+        "swe-bench-verified": {"max_tasks": 15},
         "lifelong-agent-bench": {"max_tasks": 30, "environment": ["db", "os"]},
         "appworld": {"max_tasks": 15},
         "osworld": {"max_tasks": 15},
         "the-agent-company": {"max_tasks": 10, "role": None},
         "gaia": {"max_tasks": 30, "level": None},
+        "browsecomp-plus": {"max_tasks": 15},
     },
     "full": {
         "swe-bench-cl": {"max_tasks": 50, "sequence": "django"},
+        "swe-bench-verified": {"max_tasks": 50},
         "lifelong-agent-bench": {"max_tasks": 100, "environment": "all"},
         "appworld": {"max_tasks": 50},
         "osworld": {"max_tasks": 50},
         "the-agent-company": {"max_tasks": 50, "role": None},
         "gaia": {"max_tasks": 150, "level": None},
+        "browsecomp-plus": {"max_tasks": 50},
     },
 }
 
@@ -186,6 +192,18 @@ def run_benchmark(
             # Patterns from earlier questions help with later ones
             token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
 
+        elif benchmark == "swe-bench-verified":
+            from benchmarks.harnesses.swe_bench_verified import SWEBenchVerifiedAdapter
+            adapter = SWEBenchVerifiedAdapter(harness, ecm_agent, model)
+            # Patterns across repositories help
+            token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
+
+        elif benchmark == "browsecomp-plus":
+            from benchmarks.harnesses.browsecomp_plus import BrowseCompPlusAdapter
+            adapter = BrowseCompPlusAdapter(harness, ecm_agent, model)
+            # Deep research benefits from accumulated patterns
+            token_report, correctness = adapter.run_sequence(config, reset_between_tasks=False)
+
         else:
             print(f"[{benchmark}] Adapter not implemented")
             token_report = CumulativeTokenReport(agent_type="ecm", model=model, benchmark=benchmark)
@@ -308,6 +326,10 @@ Examples:
         type=int,
         help="Maximum tasks to run (overrides size default)",
     )
+    parser.add_argument(
+        "--repo",
+        help="Repository filter for SWE-Bench-Verified (e.g., django/django)",
+    )
 
     args = parser.parse_args()
 
@@ -337,6 +359,8 @@ Examples:
         kwargs["role"] = args.role
     if args.max_tasks:
         kwargs["max_tasks"] = args.max_tasks
+    if args.repo:
+        kwargs["repo"] = args.repo
 
     # Run benchmark
     results = run_benchmark(
