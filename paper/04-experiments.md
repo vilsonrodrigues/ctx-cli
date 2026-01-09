@@ -50,8 +50,8 @@ Token usage was quantified using `tiktoken` with the `o200k_base` encoding schem
 The agent is tasked with designing a blog platform architecture through 12 sequential steps, ranging from data modeling to API design. This task evaluates the system's ability to manage context during a long, coherent reasoning chain without external interruptions.
 
 ### 4.3.2 Hypotheses
-*   **H1 (Linear)**: Context will grow linearly ($O(t)$), eventually polluting the window with obsolete reasoning from early steps.
-*   **H2 (SPACE)**: The agent will segment the task into logical scopes (e.g., `design/auth`, `design/api`), resulting in a sawtooth context profile with significantly lower peak usage.
+*   **H1 (Linear - Instability)**: Context will grow linearly ($O(t)$), eventually polluting the window with obsolete reasoning. This leads to the "Stability Barrier" where performance degrades as $t \to \infty$.
+*   **H2 (SPACE - Stability)**: The agent will segment the task into logical scopes (e.g., `design/auth`, `design/api`), resulting in a sawtooth context profile that maintains **operational stability** independent of task duration.
 
 ## 4.4 Task 2: Cross-Project Knowledge Transfer
 

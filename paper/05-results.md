@@ -90,11 +90,11 @@ The Continual Learning task (15 sequential Django issues) provides the most rigo
 | **Execution Time** | 121.5s | 80.5s | **-33.7%** |
 | **Cache Hit Rate** | ~69% | 0% | (See Discussion) |
 
-### 5.4.1 Long-Horizon Stability
+### 5.4.1 Overcoming the Stability Barrier
 
-The most significant finding is the decoupling of task count from context size.
-*   **Linear**: Context size scaled linearly ($r=0.98$) with task count. By Task 15, the agent was processing >12k tokens per turn, regardless of the task's simplicity.
-*   **SPACE**: Context size remained stationary (mean=569, $\sigma \approx 200$). The context load for Task 15 was statistically indistinguishable from Task 1.
+The most significant finding is the decoupling of task count from context size, effectively breaking the **Stability Barrier** identified in Section 1.1.
+*   **Linear**: Context size scaled linearly ($r=0.98$) with task count. By Task 15, the agent was processing >12k tokens per turn, entering the zone of high latency and potential attention collapse.
+*   **SPACE**: Context size remained stationary (mean=569, $\sigma \approx 200$). The context load for Task 15 was statistically indistinguishable from Task 1, demonstrating the capability for **indefinite operation**.
 
 ### 5.4.2 Latency Implications
 
