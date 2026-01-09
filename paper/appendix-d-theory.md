@@ -17,6 +17,9 @@ This isomorphism suggests that the three-tier architecture (Working, Episodic, S
 
 The prevailing paradigm for enhancing model performance—**Test-Time Compute (TTC)** [41]—suggests that allowing models to "think longer" improves reasoning. However, current implementations (e.g., Chain-of-Thought) often suffer from unstructured expansion, where the model generates vast amounts of "cognitive waste."
 
+**Stability as a Prerequisite for Scaling**
+We argue that the **Stability Barrier** (Section 1.1) is the fundamental limit to TTC scaling. In linear architectures, "thinking longer" (generating more tokens) quadratically increases the context load for subsequent steps, quickly hitting attention limits. SPACE breaks this dependency: by decoupling *reasoning depth* (scope duration) from *context width* (active memory), it provides the stable substrate required to scale test-time compute indefinitely.
+
 SPACE reframes TTC as **Structured Cognitive Allocation**:
 
 1.  **Scopes as Compute Budgets**: Each `scope` represents a deliberate allocation of tokens to a sub-problem. It acts as a container for thought.
