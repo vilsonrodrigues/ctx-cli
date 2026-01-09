@@ -1,6 +1,6 @@
 # 7. Conclusion
 
-We presented **SPACE (Self-Partitioned Agent Context Environment)**, a training-free architecture that addresses the critical bottleneck of context accumulation in long-horizon language model agents. By modeling conversation context as a versioned state rather than a linear log, SPACE enables agents to actively manage their information lifecycle through a minimal command interface: **navigation** (`scope`, `return`), **persistence** (`note`, `insight`), and **inspection** (`status`, `notes`).
+We presented **SPACE (Self-Partitioned Agent Context Environment)**, a training-free architecture that overcomes the **Stability Barrier** of context accumulation in long-horizon language model agents. By modeling conversation context as a versioned state rather than a linear log, SPACE enables agents to actively manage their information lifecycle through a minimal command interface: **navigation** (`scope`, `return`), **persistence** (`note`, `insight`), and **inspection** (`status`, `notes`).
 
 ## 7.1 Summary of Contributions
 
