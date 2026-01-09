@@ -42,6 +42,9 @@ Comparing SPACE to Context-Folding [2] and AgentFold [1] reveals a classic trade
 *   **Learned Approaches**: Can achieve higher compression ratios by learning domain-specific redundancy patterns (e.g., recognizing that verbose compiler logs can be compressed to a single error code).
 *   **SPACE**: Achieves structural compression without training, making it immediately deployable on any model. It creates a baseline of efficiency but cannot optimize for subtle, sub-symbolic redundancies.
 
+### 6.3.4 Scope Granularity Instability
+Qualitative analysis of pilot runs reveals that scope sizing follows an **unstable pattern**. Without explicit training or rigid heuristics, the agent's decision to create a scope is highly sensitive to prompt phrasing and model stochasticity. We observed failure modes ranging from **Micro-Scoping** (excessive fragmentation for trivial steps) to **Degenerate Linearity** (remaining in a single scope for too long). This suggests that architectural constraints alone are insufficient; a learned policy or stricter algorithmic scaffolding is required to stabilize the "cognitive rhythm" of the agent.
+
 ## 6.4 Comparative Design Analysis
 
 ### 6.4.1 SPACE vs. Context-Folding
