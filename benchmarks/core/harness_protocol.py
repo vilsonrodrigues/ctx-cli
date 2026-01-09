@@ -357,6 +357,11 @@ class HarnessAdapter:
                 success=success,
                 tool_calls=result.get("tool_calls", []),
                 ctx_cli_commands=result.get("ctx_cli_commands", []),
+                # Cache metrics
+                cached_tokens=result.get("cached_tokens", 0),
+                cache_hit_rate=result.get("cache_hit_rate", 0.0),
+                # Reasoning tokens (o-series models)
+                reasoning_tokens=result.get("reasoning_tokens", 0),
                 # Debug fields for inspection
                 agent_output=result.get("agent_output", result.get("answer", ""))[:2000],  # Truncate for JSON
                 prompt_sent=result.get("prompt_sent", "")[:2000],

@@ -173,6 +173,16 @@ class BaseAgent(ABC):
         input_tokens = response.usage.prompt_tokens
         output_tokens = response.usage.completion_tokens
 
+        # Extract cache hit information from OpenAI response
+        cached_tokens = 0
+        if hasattr(response.usage, 'prompt_tokens_details') and response.usage.prompt_tokens_details:
+            cached_tokens = getattr(response.usage.prompt_tokens_details, 'cached_tokens', 0) or 0
+
+        # Extract reasoning tokens (for o-series models: o1, o1-mini, o3, etc.)
+        reasoning_tokens = 0
+        if hasattr(response.usage, 'completion_tokens_details') and response.usage.completion_tokens_details:
+            reasoning_tokens = getattr(response.usage.completion_tokens_details, 'reasoning_tokens', 0) or 0
+
         self.total_input_tokens += input_tokens
         self.total_output_tokens += output_tokens
 
@@ -192,6 +202,11 @@ class BaseAgent(ABC):
             "prompt_tokens": prompt_tokens_end,
             "peak_prompt_tokens": prompt_tokens_end,  # For linear, peak = end
             "completion_tokens": output_tokens,
+            # Cache metrics
+            "cached_tokens": cached_tokens,
+            "cache_hit_rate": cached_tokens / input_tokens if input_tokens > 0 else 0.0,
+            # Reasoning tokens (o-series models)
+            "reasoning_tokens": reasoning_tokens,
             # Performance
             "latency": latency,
             "api_calls": 1,

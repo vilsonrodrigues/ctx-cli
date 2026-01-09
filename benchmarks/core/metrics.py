@@ -551,6 +551,13 @@ class TaskTokenRecord:
     tool_calls: list = field(default_factory=list)
     ctx_cli_commands: list = field(default_factory=list)
 
+    # Cache metrics (OpenAI prompt caching)
+    cached_tokens: int = 0           # Tokens served from cache
+    cache_hit_rate: float = 0.0      # cached_tokens / input_tokens
+
+    # Reasoning tokens (o-series models: o1, o1-mini, o3, etc.)
+    reasoning_tokens: int = 0        # Internal reasoning tokens
+
     # DEBUG: Full context inspection (for post-run analysis)
     agent_output: str = ""           # Final response from agent
     prompt_sent: str = ""            # User prompt sent to model
@@ -607,6 +614,11 @@ class TaskTokenRecord:
             "ctx_cli_commands": self.ctx_cli_commands,
             "num_tool_calls": self.num_tool_calls,
             "num_ctx_cli_calls": self.num_ctx_cli_calls,
+            # Cache metrics
+            "cached_tokens": self.cached_tokens,
+            "cache_hit_rate": round(self.cache_hit_rate, 3),
+            # Reasoning tokens (o-series models)
+            "reasoning_tokens": self.reasoning_tokens,
         }
 
         # Debug fields (for detailed inspection after long runs)
@@ -752,6 +764,34 @@ class CumulativeTokenReport:
         last = self.tasks[-1].context_at_end
         return (last - first) / len(self.tasks)
 
+    @property
+    def total_cached_tokens(self) -> int:
+        """Total tokens served from cache."""
+        return sum(t.cached_tokens for t in self.tasks)
+
+    @property
+    def avg_cache_hit_rate(self) -> float:
+        """Average cache hit rate across all tasks."""
+        if not self.tasks:
+            return 0.0
+        rates = [t.cache_hit_rate for t in self.tasks]
+        return sum(rates) / len(rates)
+
+    @property
+    def cache_trajectory(self) -> list[int]:
+        """Cached tokens per task."""
+        return [t.cached_tokens for t in self.tasks]
+
+    @property
+    def total_reasoning_tokens(self) -> int:
+        """Total reasoning tokens (o-series models)."""
+        return sum(t.reasoning_tokens for t in self.tasks)
+
+    @property
+    def reasoning_trajectory(self) -> list[int]:
+        """Reasoning tokens per task."""
+        return [t.reasoning_tokens for t in self.tasks]
+
     def to_dict(self) -> dict:
         return {
             "metadata": {
@@ -772,6 +812,11 @@ class CumulativeTokenReport:
                 "final_prompt": self.final_prompt,
                 "avg_prompt_growth": round(self.avg_prompt_growth_per_task, 1),
                 "total_completion_tokens": self.total_completion_tokens,
+                # Cache metrics
+                "total_cached_tokens": self.total_cached_tokens,
+                "avg_cache_hit_rate": round(self.avg_cache_hit_rate, 3),
+                # Reasoning tokens (o-series models)
+                "total_reasoning_tokens": self.total_reasoning_tokens,
                 # Success
                 "success_rate": round(self.success_rate, 3),
             },
@@ -784,6 +829,10 @@ class CumulativeTokenReport:
                 "prompt_trajectory_start": self.prompt_trajectory_start,
                 "prompt_trajectory": self.prompt_trajectory,
                 "completion_trajectory": self.completion_trajectory,
+                # Cache
+                "cache_trajectory": self.cache_trajectory,
+                # Reasoning (o-series)
+                "reasoning_trajectory": self.reasoning_trajectory,
             },
             "tasks": [t.to_dict() for t in self.tasks],
         }
@@ -802,6 +851,10 @@ class CumulativeTokenReport:
                 "cumulative_prompt", "cumulative_completion",
                 # Legacy (includes system prompt)
                 "input_tokens", "output_tokens", "context_at_end",
+                # Cache metrics
+                "cached_tokens", "cache_hit_rate",
+                # Reasoning (o-series models)
+                "reasoning_tokens",
                 # Performance
                 "api_calls", "success"
             ])
@@ -819,6 +872,10 @@ class CumulativeTokenReport:
                     cum_prompt, cum_completion,
                     # Legacy
                     t.input_tokens, t.output_tokens, t.context_at_end,
+                    # Cache
+                    t.cached_tokens, round(t.cache_hit_rate, 3),
+                    # Reasoning
+                    t.reasoning_tokens,
                     # Performance
                     t.api_calls, int(t.success)
                 ])
