@@ -79,11 +79,20 @@ This topology imposes **Cognitive Discipline**:
 
 ### 3.4.2 Transition Semantics
 
-Transitions follow a strict protocol to ensure causal continuity:
+Transitions follow a strict protocol to ensure causal continuity. Furthermore, the CLI interface supports **command chaining** (semicolon-separated), enabling **Atomic State Transitions**.
+
+**The "Baton Pass" Mechanism**
+A critical failure mode in partitioned architectures is "Contextual Disorientation." If an agent executes `return` and waits for the next turn, it faces an empty `main` context and may lose the thread of execution ("What was I doing next?"). SPACE resolves this by allowing the agent to close the current scope and open the next one in a single action:
+
+`return -m "Analysis complete"; scope implement/feature -m "Starting implementation"`
+
+This ensures that the *intent* of the next task is declared *before* the working memory of the previous task is wiped, preserving a continuous chain of reasoning across discontinuous memory states.
+
+**Standard Protocol:**
 
 **Departure (Scope Initiation)**: The `-m` argument documents the *intent* (e.g., "Investigating authentication failure"). This intention is recorded in `main`.
 
-**Arrival (Scope Termination)**: The `-m` argument documents the *outcome* (e.g., "Resolved via null-check in auth.py"). This summary becomes the permanent record in `main`, while the granular execution trace is discarded.
+**Arrival (Scope Termination)**: The `-m` argument documents the *outcome* (e.g., "Resolved via null-check in auth.py"). This summary becomes the permanent record in `main`.
 
 This protocol ensures `main` retains a high-level causal log of *Intents* and *Outcomes*, while detailed *Reasoning* is encapsulated and ephemeral.
 

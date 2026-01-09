@@ -17,6 +17,9 @@ Early prototypes of SPACE suffered from instability, where agents would lose tra
 
 By enforcing strict state transitions in the environment that mirror the mental model described in the prompt, the agent is relieved of the burden of *simulating* organization. The environment *is* organized, providing structural scaffolding for the agent's reasoning.
 
+### 6.1.3 Preserving Momentum via Atomic Transitions
+A subtle but critical mechanism is the support for multi-command tool calls (e.g., `return; scope`). Early experiments revealed that agents often entered repetitive loops upon returning to `main`, struggling to re-orient themselves in the clean context. By allowing multiple commands, SPACE enables the agent to "pass the baton" to its future self. The sequence `return; scope` acts as a cognitive bridge: the *summary* of the past and the *plan* for the future are generated in the same inference pass, ensuring that the loss of working memory does not result in a loss of agentic agency.
+
 ## 6.2 The Deployment Decision Matrix
 
 The decision to adopt SPACE over linear context management depends heavily on the task topology. We propose a simple heuristic based on **Context Locality**:
