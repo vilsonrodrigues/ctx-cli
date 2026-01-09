@@ -551,6 +551,13 @@ class TaskTokenRecord:
     tool_calls: list = field(default_factory=list)
     ctx_cli_commands: list = field(default_factory=list)
 
+    # DEBUG: Full context inspection (for post-run analysis)
+    agent_output: str = ""           # Final response from agent
+    prompt_sent: str = ""            # User prompt sent to model
+    execution_log: list = field(default_factory=list)  # Harness execution log
+    ecm_state: dict = field(default_factory=dict)      # ECM notes/insights snapshot
+    messages_snapshot: list = field(default_factory=list)  # Full message history (optional)
+
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
@@ -575,8 +582,8 @@ class TaskTokenRecord:
         """Change in working context during this task."""
         return self.prompt_tokens - self.prompt_tokens_start
 
-    def to_dict(self) -> dict:
-        return {
+    def to_dict(self, include_debug: bool = True) -> dict:
+        result = {
             "task_id": self.task_id,
             "task_name": self.task_name,
             # Legacy (includes system prompt)
@@ -601,6 +608,18 @@ class TaskTokenRecord:
             "num_tool_calls": self.num_tool_calls,
             "num_ctx_cli_calls": self.num_ctx_cli_calls,
         }
+
+        # Debug fields (for detailed inspection after long runs)
+        if include_debug:
+            result["debug"] = {
+                "agent_output": self.agent_output,
+                "prompt_sent": self.prompt_sent,
+                "execution_log": self.execution_log,
+                "ecm_state": self.ecm_state,
+                "messages_snapshot": self.messages_snapshot,
+            }
+
+        return result
 
 
 @dataclass

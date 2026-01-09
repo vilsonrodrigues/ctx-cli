@@ -325,6 +325,18 @@ class HarnessAdapter:
                 self.correctness.tasks_succeeded += 1
             self.correctness.update_success_rate()
 
+            # Capture ECM state if available
+            ecm_state = {}
+            if hasattr(self.agent, 'store'):
+                store = self.agent.store
+                ecm_state = {
+                    "current_scope": getattr(store, 'current_scope', 'main'),
+                    "notes_count": len(getattr(store, 'notes', [])),
+                    "insights_count": len(getattr(store, 'insights', [])),
+                    "notes": [n.get('content', str(n))[:200] for n in getattr(store, 'notes', [])[-5:]],
+                    "insights": [i.get('content', str(i))[:200] for i in getattr(store, 'insights', [])[-3:]],
+                }
+
             # Record token metrics with tool call tracking
             record = TaskTokenRecord(
                 task_id=task.task_id,
@@ -345,6 +357,12 @@ class HarnessAdapter:
                 success=success,
                 tool_calls=result.get("tool_calls", []),
                 ctx_cli_commands=result.get("ctx_cli_commands", []),
+                # Debug fields for inspection
+                agent_output=result.get("agent_output", result.get("answer", ""))[:2000],  # Truncate for JSON
+                prompt_sent=result.get("prompt_sent", "")[:2000],
+                execution_log=harness_result.execution_log if harness_result else [],
+                ecm_state=ecm_state,
+                messages_snapshot=result.get("messages_snapshot", [])[-10:],  # Last 10 messages
             )
             report.add_task(record)
 
@@ -373,6 +391,9 @@ class HarnessAdapter:
         # Normalize: agent returns 'answer', harness expects 'agent_output'
         if "answer" in result and "agent_output" not in result:
             result["agent_output"] = result["answer"]
+
+        # Store prompt for debug logging
+        result["prompt_sent"] = prompt
 
         return result
 
