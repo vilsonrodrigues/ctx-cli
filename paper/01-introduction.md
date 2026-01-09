@@ -4,17 +4,16 @@ Language model agents have emerged as a compelling paradigm for automating compl
 
 However, a fundamental tension undermines this promise: while agentic tasks require potentially unbounded reasoning, the underlying context windows are finite. As agents execute multi-step tasks, every interaction—user requests, assistant responses, tool invocations, and their results—accumulates in the conversation history. This creates a linear growth in context size that eventually degrades performance through attention dilution and exceeds model limits [4, 5].
 
-## 1.1 The Context Growth Problem
+## 1.1 The Stability Barrier
 
 Consider an agent tasked with resolving a sequence of GitHub issues in a codebase. Each issue builds on knowledge from previous fixes: code patterns discovered, API conventions learned, architectural constraints identified. In a traditional agent loop, every interaction persists in context. For a sequence of 15 coding tasks from SWE-Bench-CL [20], we observe context growing to over 12,000 tokens by the final task, with linear approaches accumulating context at $\sim$780 tokens per task.
 
-This unbounded accumulation creates a cascade of systemic failures:
-1.  **Linear Token Cost Scaling**: Financial costs scale linearly with task duration, imposing a prohibitive burden on long-running operations.
-2.  **Latency Increases**: Inference latency grows as models must process increasingly longer inputs for every subsequent step.
-3.  **Attention Dilution**: As the context window fills with noise from previous tasks, the model's ability to retrieve specific, relevant information degrades [4, 5].
-4.  **Overflow Risk**: The inevitable context overflow forces arbitrary truncation, severing critical reasoning chains and causing "context amnesia."
+This unbounded accumulation creates a fundamental **stability barrier**. It is not merely a question of cost, but of operational viability. As context grows, agents face:
+1.  **Attention Collapse**: The model's ability to retrieve specific, relevant information degrades as the ratio of noise (past history) to signal (current task) increases [4, 5].
+2.  **Context Amnesia**: When the window limit is reached, arbitrary truncation severs reasoning chains, forcing the agent to rediscover information it "knows" but can no longer "see."
+3.  **Latency Spikes**: Inference latency grows super-linearly, rendering the agent unresponsive in real-time loops.
 
-The Cognitive Architectures for Language Agents (CoALA) framework [12] identifies this as a structural limitation: most contemporary agents conflate *working memory* (active reasoning) with *long-term memory* (accumulated knowledge) within the same context window. This conflation implies that retaining knowledge requires retaining all the messages that produced it—an unsustainable design for long-horizon tasks.
+The Cognitive Architectures for Language Agents (CoALA) framework [12] identifies this as a structural limitation: most contemporary agents conflate *working memory* (active reasoning) with *long-term memory* (accumulated knowledge) within the same finite context window. To achieve true longevity, an agent must be able to **discard** the process of learning while **retaining** the lesson learned.
 
 ## 1.2 The Memory Imperative
 
