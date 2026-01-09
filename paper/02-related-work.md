@@ -12,6 +12,12 @@ CoALA distinguishes between **working memory** (the active context window) and *
 
 Critically, CoALA identifies that most contemporary agents conflate working and long-term memory within the context window—a design that inherently limits agent longevity. Our work addresses this limitation through explicit scope isolation, creating distinct memory tiers without requiring external databases.
 
+### 2.1.1 Dual Process Architectures
+
+Our approach aligns with cognitive science theories of **dual-process reasoning** (System 1 vs. System 2) [Kahneman, 2011]. Recent neural architectures like **SwiftSage** [Lin et al., 2023] implement this by separating "fast" intuition from "slow" reasoning across different *models*. Similarly, **System 2 Attention** [Weston & Sukhbaatar, 2023] proposes regenerating context to filter irrelevant tokens before responding.
+
+SPACE implements this distinction structurally rather than through model ensembling. The `main` and `plan/` scopes serve as a high-context **"Sage" (System 2)** environment for deliberative reasoning, while `implement/` scopes serve as a low-latency **"Swift" (System 1)** environment for focused execution. This architectural separation prevents the verbose traces of reasoning from polluting the attention mechanism needed for precise tool use [38].
+
 ## 2.2 Version Control as Cognitive Metaphor
 
 While not typically cited in agent literature, software version control systems (VCS) like Git represent the most successful engineered systems for managing complex, non-linear text history. Concepts such as **branching** (isolating work), **committing** (checkpointing state), and **merging** (reintegrating knowledge) provide a mature vocabulary for managing state evolution.

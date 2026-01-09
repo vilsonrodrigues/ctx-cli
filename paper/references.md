@@ -71,3 +71,11 @@
 [41] Snell, C., et al. (2024). Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters. *arXiv*.
 
 [42] OpenAI. (2025). Introducing GPT-4.1 in the API. *OpenAI Blog*. https://openai.com/index/gpt-4-1/
+
+[43] Kahneman, D. (2011). *Thinking, Fast and Slow*. Farrar, Straus and Giroux.
+
+[44] Lin, B. Y., et al. (2023). SwiftSage: A Generative Agent with Fast and Slow Thinking. *NeurIPS*.
+
+[45] Weston, J., & Sukhbaatar, S. (2023). System 2 Attention (is something you might need too). *arXiv:2311.11829*.
+
+[46] Yao, S., et al. (2023). ReAct: Synergizing Reasoning and Acting in Language Models. *ICLR*.
