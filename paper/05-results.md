@@ -1,120 +1,208 @@
-# 5. Empirical Results
+# 5. Results
 
-This section details the empirical findings from our experimental evaluation. We present quantitative analysis of token economics across the four distinct tasks defined in Section 4, followed by a qualitative assessment of knowledge transfer capabilities. **Note: The data presented herein represents consolidated results from pilot replications; comprehensive evaluation using the full benchmark harness is currently in progress.**
+This section presents empirical findings from our evaluation on SWE-Bench-CL and LifelongAgentBench. We report results for both GPT-4o-mini and GPT-5-mini to assess generalization across model capabilities.
 
-## 5.1 Task 1: Multi-Step Design (Token Economics)
+## 5.1 SWE-Bench-CL
 
-We assessed the efficiency of the SPACE architecture in a 12-step sequential design task. Table 2 summarizes the comparative token metrics.
+### 5.1.1 Context Dynamics
 
-**Table 2: Comparative Token Economics for Multi-Step Design**
+Table 2 summarizes context metrics across the full task sequence.
 
-| Metric | Linear Baseline | SPACE Treatment | $\Delta$ (Impact) |
-| :--- | :--- | :--- | :--- |
-| **Total Input Tokens** | 431,528 | 137,025 | **-68.2%** |
-| **Peak Input Tokens** | 23,249 | 6,353 | **-72.7%** |
-| **Base Input Tokens** | 1,247 | 2,891 | +131.8% |
-| **Context Growth** | 22,002 | 3,462 | **-84.3%** |
-| **Total Output Tokens** | 18,442 | 21,156 | +14.7% |
-| **Task Completion** | 100% (12/12) | 100% (12/12) | — |
+**Table 2: SWE-Bench-CL Context Metrics**
 
-### 5.1.1 Analysis of Context Dynamics
-
-1.  **Reduction in Accumulation**: The SPACE architecture achieved a **68.2% reduction** in total input tokens. This efficiency gain stems from the radial navigation topology: by isolating each step into a discrete scope and returning only a summary, the agent prevents the linear accumulation of intermediate reasoning states.
-2.  **Peak Context Bounding**: Peak context usage was reduced by **72.7%** (23k $\rightarrow$ 6.3k). This is critical for latency-sensitive applications, as inference time scales super-linearly with input length for Transformer architectures.
-3.  **Overhead vs. Savings**: While SPACE incurs a fixed overhead in the base system prompt (+131% base tokens), this cost is amortized rapidly. The **84.3% reduction in context growth** indicates that for any task exceeding $\sim$3 steps, the dynamic savings outweigh the static overhead.
-4.  **Operational Overhead**: The SPACE condition generated **14.7% more output tokens**. This reflects the "control tax"—the additional tokens required to generate tool calls (`scope`, `return`, `note`) and their JSON payloads.
-
-### 5.1.2 Growth Trajectory Analysis
-
-The contrasting growth profiles confirm our theoretical models from Section 3.5:
-*   **Linear Baseline**: Exhibited strict monotonic growth ($R^2 > 0.99$), confirming the $O(t)$ accumulation model.
-*   **SPACE**: Exhibited a stable **sawtooth pattern**. Context grows locally within a scope ($O(k)$) but resets to the baseline upon every `return` command, effectively bounding the maximum context window regardless of the total step count.
-
-## 5.2 Task 2: Cross-Project Knowledge Transfer
-
-We evaluated the ability of agents to transfer semantic knowledge between sequential, disjoint projects.
-
-**Table 3: Knowledge Transfer Efficiency**
-
-| Metric | Project | Linear Baseline | SPACE Treatment | $\Delta$ |
+| Metric | Linear (GPT-4o-mini) | SPACE (GPT-4o-mini) | Linear (GPT-5-mini) | SPACE (GPT-5-mini) |
 | :--- | :--- | :--- | :--- | :--- |
-| **Growth (Tokens)** | A (Source) | 3,767 | 2,478 | -34.2% |
-| **Iterations** | A (Source) | 6 | 5 | -1 |
-| **Growth (Tokens)** | B (Target) | 3,443 | **1,121** | **-67.4%** |
-| **Iterations** | B (Target) | 5 | **4** | **-1** |
+| **Peak Context (tokens)** | [TBD] | [TBD] | [TBD] | [TBD] |
+| **Context at Task 15** | [TBD] | [TBD] | [TBD] | [TBD] |
+| **Avg Context/Task** | [TBD] | [TBD] | [TBD] | [TBD] |
+| **Cumulative Tokens** | [TBD] | [TBD] | [TBD] | [TBD] |
+| **Execution Time** | [TBD] | [TBD] | [TBD] | [TBD] |
 
-### 5.2.1 Empirical Evidence of Transfer
+**Key findings**:
+- [TBD: Describe context growth patterns]
+- [TBD: Compare linear vs bounded growth]
+- [TBD: Sawtooth pattern observation]
 
-The SPACE agent demonstrated significant "second-system efficiency." While Project A showed moderate savings (-34%), Project B showed a dramatic **67.4% reduction in context growth** compared to the baseline.
+### 5.1.2 Task Success Rate
 
-Qualitative inspection of the trace logs revealed the mechanism:
-1.  **Explicit Retrieval**: In 80% of trials (4/5), the SPACE agent executed `notes user-model` immediately upon starting Project B.
-2.  **Pattern Reapplication**: The agent utilized the retrieved notes to replicate the validation logic structure from Project A without the exploratory "trial-and-error" phase observed in the baseline condition.
-3.  **Code Consistency**: The resulting implementation in Project B matched the stylistic patterns of Project A (e.g., using specific dataclass decorators and validation methods) more consistently than the baseline.
+Table 3 reports task completion metrics.
 
-## 5.3 Task 3: Alternative Exploration (Branching)
+**Table 3: SWE-Bench-CL Task Performance**
 
-This task measured the ability to maintain distinct reasoning paths without cross-contamination.
+| Metric | Linear (GPT-4o-mini) | SPACE (GPT-4o-mini) | Linear (GPT-5-mini) | SPACE (GPT-5-mini) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Success Rate** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
+| **Partial Success** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
+| **Success @Task 1-5** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
+| **Success @Task 11-15** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
 
-**Table 4: Comparative Exploration Metrics**
+**Key findings**:
+- [TBD: Performance preservation across sequence]
+- [TBD: Degradation in linear condition]
+- [TBD: Stability in SPACE condition]
 
-| Metric | Linear Baseline | SPACE Treatment |
-| :--- | :--- | :--- |
-| **Total Input Tokens** | 89,124 | 52,891 |
-| **Peak Input Tokens** | 12,456 | 5,891 |
-| **Information Isolation** | Low (Context Mixing) | High (Scope Isolation) |
+### 5.1.3 Growth Trajectory Analysis
 
-### 5.3.1 Qualitative Assessment of Isolation
+Figure 1 illustrates the contrasting context growth profiles.
 
-In the **Linear Baseline**, the agent's analysis of Approach B (CRDTs) frequently referenced implementation details from Approach A (OT) inappropriately, leading to "conceptual bleeding" where the trade-offs became muddled.
+[TBD: Figure 1 - Context size vs task number for Linear and SPACE conditions]
 
-In the **SPACE Treatment**, the agent explicitly created isolated scopes:
-1.  `scope explore/ot`
-2.  `return` (clearing OT context)
-3.  `scope explore/crdt`
-4.  `return` (clearing CRDT context)
+The linear baseline exhibits monotonic growth consistent with $O(T)$ accumulation. The SPACE condition exhibits a characteristic **sawtooth pattern**: context grows within each scope but resets upon `return`, maintaining bounded peak context independent of task count.
 
-The final comparative analysis relied exclusively on the *notes* generated from these scopes. This enforced a clean separation of concerns: the agent compared the *crystallized findings* rather than the *noisy exploration process*, resulting in a more coherent final recommendation.
+## 5.2 LifelongAgentBench
 
-## 5.4 Task 4: SWE-Bench-CL (Continual Learning)
+### 5.2.1 Forward Transfer
 
-The Continual Learning task (15 sequential Django issues) provides the most rigorous test of long-horizon stability.
+Table 4 reports forward transfer metrics—whether knowledge from early tasks improves performance on later tasks.
 
-**Table 5: SWE-Bench-CL Longitudinal Metrics (15 Tasks)**
+**Table 4: LifelongAgentBench Forward Transfer**
 
-| Metric | Linear Baseline | SPACE Treatment | Impact |
+| Metric | Linear | SPACE | $\Delta$ |
 | :--- | :--- | :--- | :--- |
-| **Peak Context** | 12,059 | 1,402 | **-88.4%** |
-| **Final Task Context** | 12,059 | 801 | **-93.3%** |
-| **Avg Context/Task** | 6,032 | 569 | **-90.6%** |
-| **Execution Time** | 121.5s | 80.5s | **-33.7%** |
-| **Cache Hit Rate** | ~69% | 0% | (See Discussion) |
+| **Early Task Performance (1-5)** | [TBD]% | [TBD]% | [TBD] |
+| **Late Task Performance (N-5 to N)** | [TBD]% | [TBD]% | [TBD] |
+| **Transfer Gain** | [TBD] | [TBD] | [TBD] |
 
-### 5.4.1 Overcoming the Stability Barrier
+**Key findings**:
+- [TBD: Evidence of knowledge transfer via insights]
+- [TBD: Comparison with linear baseline]
 
-The most significant finding is the decoupling of task count from context size, effectively breaking the **Stability Barrier** identified in Section 1.1.
-*   **Linear**: Context size scaled linearly ($r=0.98$) with task count. By Task 15, the agent was processing >12k tokens per turn, entering the zone of high latency and potential attention collapse.
-*   **SPACE**: Context size remained stationary (mean=569, $\sigma \approx 200$). The context load for Task 15 was statistically indistinguishable from Task 1, demonstrating the capability for **indefinite operation**.
+### 5.2.2 Backward Interference
 
-### 5.4.2 Latency Implications
+Table 5 reports whether performance on early task types degrades as the agent accumulates experience.
 
-Despite a 4.1% increase in total API calls (due to navigation commands), the SPACE condition achieved a **33.7% reduction in total execution time**. This counter-intuitive result is explained by the physics of Transformer inference: the reduction in input tokens per call (input latency) outweighed the cost of additional network round-trips.
+**Table 5: LifelongAgentBench Backward Interference**
 
-## 5.5 Aggregate Analysis
+| Task Type | Linear (Early) | Linear (Late) | SPACE (Early) | SPACE (Late) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Coding** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
+| **Reasoning** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
+| **Retrieval** | [TBD]% | [TBD]% | [TBD]% | [TBD]% |
 
-### 5.5.1 Summary of Efficiency Gains
+**Key findings**:
+- [TBD: Catastrophic forgetting in linear condition]
+- [TBD: Stability in SPACE condition]
 
-Across all experimental conditions, SPACE demonstrates a consistent efficiency advantage that scales with task horizon:
+## 5.3 Cross-Model Analysis
 
-| Scenario | Peak Context Reduction | Primary Driver |
+Table 6 compares the effectiveness of SPACE across model generations.
+
+**Table 6: Model Comparison Summary**
+
+| Metric | GPT-4o-mini | GPT-5-mini | Observation |
+| :--- | :--- | :--- | :--- |
+| **Context Reduction** | [TBD]% | [TBD]% | [TBD] |
+| **Success Rate Improvement** | [TBD]% | [TBD]% | [TBD] |
+| **Command Compliance** | [TBD]% | [TBD]% | [TBD] |
+
+**Key findings**:
+- [TBD: Whether SPACE benefits generalize to reasoning models]
+- [TBD: Differences in scope utilization patterns]
+
+## 5.4 Hypothesis Evaluation
+
+We evaluate the four hypotheses from §4.5:
+
+### H1: Stability (Context Growth)
+
+| Condition | Expected | Observed | Supported? |
+| :--- | :--- | :--- | :--- |
+| Linear | $O(T)$ growth | [TBD] | [TBD] |
+| SPACE | $O(k_{\max})$ bounded | [TBD] | [TBD] |
+
+### H2: Performance Preservation
+
+| Condition | Expected | Observed | Supported? |
+| :--- | :--- | :--- | :--- |
+| Linear | Degradation over sequence | [TBD] | [TBD] |
+| SPACE | Stable performance | [TBD] | [TBD] |
+
+### H3: Knowledge Transfer (Within-Session)
+
+| Condition | Expected | Observed | Supported? |
+| :--- | :--- | :--- | :--- |
+| SPACE (with insights) | Improved late-task performance | [TBD] | [TBD] |
+| SPACE (fresh) | Baseline late-task performance | [TBD] | [TBD] |
+
+### H4: Cross-Session Transfer (Across Projects)
+
+| Condition | Expected | Observed | Supported? |
+| :--- | :--- | :--- | :--- |
+| SPACE (new project, inherited insights) | Improved initial performance | [TBD] | [TBD] |
+| SPACE (new project, empty insights) | Baseline initial performance | [TBD] | [TBD] |
+
+**Table 7: Cross-Project Transfer Metrics**
+
+| Metric | Fresh Start | With Inherited Insights | $\Delta$ |
+| :--- | :--- | :--- | :--- |
+| **First 5 Tasks Success Rate** | [TBD]% | [TBD]% | [TBD] |
+| **Insight Retrieval Rate** | N/A | [TBD]% | — |
+| **Novel Insights Generated** | [TBD] | [TBD] | [TBD] |
+
+**Key findings**:
+- [TBD: Whether insights from project-v1 benefit project-v2]
+- [TBD: Insight retrieval patterns across project boundaries]
+- [TBD: Comparison of convergence speed with/without prior knowledge]
+
+## 5.5 Ablation Studies
+
+### 5.5.1 Component Ablations
+
+**Table 8: Component Ablation Results (SWE-Bench-CL)**
+
+| Condition | Peak Context | Context Reduction | Success Rate | Forward Transfer |
+| :--- | :--- | :--- | :--- | :--- |
+| **Full SPACE** | [TBD] | [TBD]% | [TBD]% | [TBD] |
+| **No Insights** | [TBD] | [TBD]% | [TBD]% | [TBD] |
+| **No Notes** | [TBD] | [TBD]% | [TBD]% | [TBD] |
+| **No Scopes** | [TBD] | [TBD]% | [TBD]% | [TBD] |
+| **Linear Baseline** | [TBD] | — | [TBD]% | [TBD] |
+
+**Key findings**:
+- [TBD: Relative contribution of each component]
+- [TBD: Which component is most critical for context efficiency?]
+- [TBD: Which component is most critical for knowledge transfer?]
+
+### 5.5.2 Scope Granularity Analysis
+
+**Table 9: Scope Usage Patterns**
+
+| Metric | GPT-4o-mini | GPT-5-mini |
 | :--- | :--- | :--- |
-| **Short-Horizon** (Task 2) | ~18% | Semantic Reuse |
-| **Medium-Horizon** (Task 3) | ~53% | Branch Isolation |
-| **Long-Horizon** (Task 1) | ~73% | Scope Reset |
-| **Lifelong** (Task 4) | **~88%** | $O(1)$ Scaling |
+| **Avg Scope Length (turns)** | [TBD] | [TBD] |
+| **Scopes per Task** | [TBD] | [TBD] |
+| **Return Rate** | [TBD]% | [TBD]% |
+| **Abandoned Scopes** | [TBD] | [TBD] |
 
-### 5.5.2 The "Prompt Caching Paradox"
+**Key findings**:
+- [TBD: Correlation between scope length and task success]
+- [TBD: Differences in scoping behavior between models]
+- [TBD: Evidence of micro-scoping or degenerate linearity]
 
-A notable anomaly in Table 5 is the **0% Cache Hit Rate** for SPACE versus 69% for Linear. Current prompt caching implementations (e.g., Anthropic, OpenAI) rely on prefix matching. In the Linear condition, the growing history forms a stable prefix. In SPACE, the frequent context resets (clearing the "middle" of the prompt) break the prefix continuity.
+### 5.5.3 Memory Utilization Analysis
 
-While this seemingly penalizes SPACE, the **absolute reduction in tokens** (-88%) vastly outweighs the benefit of caching. Even with a 100% cache hit rate, the Linear agent would still process more tokens than the SPACE agent due to the sheer volume of the accumulated history. Furthermore, the SPACE architecture could be optimized for caching by placing the "Semantic Memory" block at the start of the prompt as a stable prefix.
+**Table 10: Memory Tier Utilization**
+
+| Metric | GPT-4o-mini | GPT-5-mini |
+| :--- | :--- | :--- |
+| **Notes Created (total)** | [TBD] | [TBD] |
+| **Notes Retrieved (total)** | [TBD] | [TBD] |
+| **Note Retrieval Rate** | [TBD]% | [TBD]% |
+| **Insights Created (total)** | [TBD] | [TBD] |
+| **Insight Retrieval Rate** | [TBD]% | [TBD]% |
+| **"Write-Only" Notes** | [TBD]% | [TBD]% |
+
+**Key findings**:
+- [TBD: What fraction of notes are actually useful?]
+- [TBD: Are insights generalizing or remaining task-specific?]
+- [TBD: Evidence of effective knowledge consolidation]
+
+## 5.6 Summary
+
+[TBD: 2-3 paragraph summary of key findings]
+
+**Primary result**: [TBD]
+
+**Secondary findings**: [TBD]
+
+**Unexpected observations**: [TBD]

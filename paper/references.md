@@ -79,3 +79,7 @@
 [45] Weston, J., & Sukhbaatar, S. (2023). System 2 Attention (is something you might need too). *arXiv:2311.11829*.
 
 [46] Yao, S., et al. (2023). ReAct: Synergizing Reasoning and Acting in Language Models. *ICLR*.
+
+[47] Wang, X., et al. (2023). Self-Consistency Improves Chain of Thought Reasoning in Language Models. *ICLR*.
+
+[48] Besta, M., et al. (2023). Graph of Thoughts: Solving Elaborate Problems with Large Language Models. *arXiv:2308.09687*.

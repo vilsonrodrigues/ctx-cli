@@ -1,44 +1,38 @@
 # 2. Related Work
 
-The challenge of maintaining coherent long-term behavior in language model agents has catalyzed a rich body of research spanning cognitive architectures, memory systems, and context management techniques. Recent literature distinguishes between **Semantic Memory**—the storage of general facts and world knowledge—and **Episodic Memory**—the recall of specific past events and their contexts [5, 10]. In LLM agents, semantic memory is often implemented via Retrieval-Augmented Generation (RAG) using vector databases. However, pure RAG approaches often struggle with "Context Drift," where irrelevant episodic history pollutes the reasoning space.
+The challenge of maintaining coherent long-term behavior in language model agents has catalyzed a rich body of research spanning cognitive architectures, memory systems, and context management techniques. The cognitive science literature distinguishes between **Semantic Memory**—the storage of general facts and world knowledge—and **Episodic Memory**—the recall of specific past events and their contexts [10, 21]. In LLM agents, semantic memory is often implemented via Retrieval-Augmented Generation (RAG) using vector databases. However, pure RAG approaches often struggle with "Context Drift," where irrelevant episodic history pollutes the reasoning space [5].
 
-This section surveys the landscape of memory and context management for LLM agents, positioning SPACE relative to cognitive architectures (§2.1), episodic memory systems (§2.3-2.4), virtual context management (§2.5), agentic memory (§2.6), learned compression (§2.7), and domain-specific challenges (§2.8).
+This section surveys the landscape of memory and context management for LLM agents, positioning SPACE relative to cognitive architectures (§2.1), episodic memory systems (§2.2-2.3), recursive language models (§2.4), virtual context management (§2.5), agentic memory (§2.6), learned compression (§2.7), and domain-specific challenges (§2.8).
 
 ## 2.1 Cognitive Architectures for Language Agents
 
 The Cognitive Architectures for Language Agents (CoALA) framework [12] provides a foundational taxonomy for understanding agent memory systems. Drawing on classical cognitive science and symbolic AI traditions—particularly the SOAR architecture—CoALA organizes agent cognition along three axes: information storage, action space, and decision-making procedures.
 
-CoALA distinguishes between **working memory** (the active context window) and **long-term memory**, further subdividing the latter into semantic (facts and concepts), episodic (specific experiences), and procedural (skills and behaviors) components [12]. This taxonomy has become the de facto standard for describing memory in language agents, and we adopt its terminology throughout this work.
+CoALA distinguishes between **working memory** (the active context window) and **long-term memory**, further subdividing the latter into semantic, episodic, and procedural components [12]. As noted in §1.2, this taxonomy has become standard for describing memory in language agents, and we adopt its terminology throughout this work.
 
 Critically, CoALA identifies that most contemporary agents conflate working and long-term memory within the context window—a design that inherently limits agent longevity. Our work addresses this limitation through explicit scope isolation, creating distinct memory tiers without requiring external databases.
 
 ### 2.1.1 Dual Process Architectures
 
-Our approach aligns with cognitive science theories of **dual-process reasoning** (System 1 vs. System 2) [Kahneman, 2011]. Recent neural architectures like **SwiftSage** [Lin et al., 2023] implement this by separating "fast" intuition from "slow" reasoning across different *models*. Similarly, **System 2 Attention** [Weston & Sukhbaatar, 2023] proposes regenerating context to filter irrelevant tokens before responding.
+Related work has explored cognitive science theories of **dual-process reasoning** (System 1 vs. System 2) [43] for agent design. Neural architectures like **SwiftSage** [44] implement this by separating "fast" intuition from "slow" reasoning across different *models*. Similarly, **System 2 Attention** [45] proposes regenerating context to filter irrelevant tokens before responding.
 
-SPACE implements this distinction structurally rather than through model ensembling. The `main` and `plan/` scopes serve as a high-context **"Sage" (System 2)** environment for deliberative reasoning, while `implement/` scopes serve as a low-latency **"Swift" (System 1)** environment for focused execution. This architectural separation prevents the verbose traces of reasoning from polluting the attention mechanism needed for precise tool use [38].
+These approaches typically require model ensembling or architectural modifications. SPACE achieves a related separation through simpler means: scopes provide isolated contexts for focused execution, while the `main` context serves as the deliberative hub. This prevents verbose traces of task execution from polluting the attention mechanism needed for high-level reasoning [38].
 
-## 2.2 Version Control as Cognitive Metaphor
-
-While not typically cited in agent literature, software version control systems (VCS) like Git represent the most successful engineered systems for managing complex, non-linear text history. Concepts such as **branching** (isolating work), **committing** (checkpointing state), and **merging** (reintegrating knowledge) provide a mature vocabulary for managing state evolution.
-
-Our work explicitly adopts these metaphors. Where Git manages code, our system manages *reasoning*. By treating the agent's context as a versioned artifact, we gain powerful primitives for handling the "forking paths" of complex problem solving—primitives that are absent in linear conversation models.
-
-## 2.3 Episodic Memory: Foundations and Retrieval
+## 2.2 Episodic Memory: Foundations and Retrieval
 
 The theoretical basis for episodic memory traces back to Tulving [21], who distinguished it from semantic memory by its "autonoetic" quality—the ability to mentally travel back in time to re-experience specific events defined by *what*, *where*, and *when*.
 
-### 2.3.1 Retrieval-Augmented Approaches
+### 2.2.1 Retrieval-Augmented Approaches
 
 Most contemporary agents implement episodic memory via **Retrieval-Augmented Generation (RAG)** over raw interaction logs. Systems like **MemoryBank** [22] enforce biological realism by implementing the Ebbinghaus forgetting curve, where memories decay over time unless reinforced. **TiM (Think-in-Memory)** [23] creates an evolving memory store where agents can iteratively curate their own history.
 
 However, standard RAG approaches suffer from **narrative fragmentation**. Retrieving the top-$k$ distinct log chunks based on semantic similarity often destroys the causal chain of reasoning. The agent retrieves *what* happened, but loses the *why*—the transition logic that links state A to state B. SPACE addresses this by storing synthesized notes rather than raw logs, and by enforcing transition summaries that explicitly preserve causality.
 
-### 2.3.2 Experience Replay
+### 2.2.2 Experience Replay
 
 In Reinforcement Learning, **Experience Replay** buffers allow agents to learn from past transitions. **REMEMBERER** [24] adapts this for LLMs, training a dedicated memory model to select high-value experiences for storage. Unlike these systems, which often require training or separate retriever models, SPACE relies on the agent's own in-context reasoning to decide what is memorable at the moment of creation.
 
-## 2.4 Generative Agents and Reflection
+## 2.3 Generative Agents and Reflection
 
 The seminal work on **Generative Agents** [14] established the structural implementation of episodic memory for believable behavior. By equipping simulated characters with memory streams, reflection capabilities, and planning modules, Park et al. demonstrated that explicit memory mechanisms transform LLMs into entities capable of coherent multi-day behavior.
 
@@ -49,9 +43,9 @@ The Generative Agents architecture comprises three components:
 
 **Reflexion** [15] extends this to task-oriented agents through **verbal reinforcement learning**, maintaining an episodic buffer of self-critiques (e.g., "I failed specifically because I imported the wrong library") to inform future attempts.
 
-Our note-taking mechanism shares the "Reflection" DNA of these systems: notes are explicit syntheses of experience rather than raw logs. However, while Generative Agents focuses on *background* simulation, SPACE focuses on *active* workflow management. Our "Scope" mechanism adds a spatial dimension (memory isolation) that these linear-stream systems lack.
+Our note-taking mechanism shares the "Reflection" DNA of these systems: notes are explicit syntheses of experience rather than raw logs. However, while Generative Agents focuses on *background* simulation, SPACE focuses on *active* workflow management. Our scope mechanism adds memory isolation that these linear-stream systems lack.
 
-## 2.5 Recursive Language Models (RLM)
+## 2.4 Recursive Language Models (RLM)
 
 **Recursive Language Models** [31] introduce a paradigm shift: instead of feeding long prompts directly into the neural network, the prompt becomes part of an **external environment** that the model can programmatically examine. The core mechanism provides the model with a Python REPL where the prompt is stored as a variable (`context`), and a special `llm_query` function allows the model to recursively call itself on filtered snippets.
 
@@ -70,19 +64,7 @@ However, RLM has significant limitations:
 
 ### SPACE vs RLM: Abstraction Level Tradeoff
 
-RLM and SPACE represent different points on the **abstraction spectrum** for context management:
-
-| Dimension | RLM | SPACE |
-| :--- | :--- | :--- |
-| Interface | Raw Python code generation | High-level CLI commands |
-| Flexibility | Maximum (arbitrary code) | Constrained (7 commands) |
-| Latency | High (code execution) | Low (~1.5s per transition) |
-| Model Requirements | Frontier (>400B) | Any tool-use capable |
-| Failure Risk | High (code errors) | Low (validated commands) |
-| Learning Curve | Complex (write Python) | Simple (call tools) |
-
-**RLM's approach**: "Let the model write arbitrary memory management code."
-**SPACE's approach**: "Give the model a structured memory API."
+RLM and SPACE represent different points on the abstraction spectrum for context management. RLM offers maximum flexibility through raw Python code generation but requires frontier-class models and incurs high failure risk from code errors. SPACE constrains the agent to a minimal command set, trading flexibility for reliability and accessibility to any tool-use capable model.
 
 SPACE can be viewed as a **high-level abstraction over RLM's principles**. Where RLM requires the model to write code like:
 ```python
@@ -102,7 +84,7 @@ return -m "Completed extraction"
 
 This shifts complexity from **generation** (writing correct Python) to **selection** (choosing the right command), dramatically reducing failure modes while preserving the core benefit of agent-controlled context management.
 
-## 2.6 Virtual Context Management
+## 2.5 Virtual Context Management
 
 **MemGPT** [13] introduced the paradigm of **virtual context management**, drawing an analogy between LLM context windows and operating system memory hierarchies. Just as operating systems provide the illusion of unlimited memory through paging between RAM and disk, MemGPT enables LLMs to operate beyond their native context limits through intelligent data movement.
 
@@ -112,13 +94,13 @@ The MemGPT architecture divides memory into:
 
 The LLM manages these tiers through function calls, "paging" information in and out. This operating systems metaphor is powerful but introduces complexity: agents must learn paging policies. Our approach shares MemGPT's goal of bounded context but achieves it through simpler means—explicit scope boundaries rather than learned paging policies.
 
-## 2.7 Agentic Memory Systems
+## 2.6 Agentic Memory Systems
 
 Recent work has moved beyond passive storage toward **agentic memory**—systems that actively manage their own memory lifecycle.
 
 **Mem0** [16] employs a two-phase pipeline (Extraction + Resolution) to maintain a consistent user profile. **A-MEM** [17] draws inspiration from the Zettelkasten method, organizing memories as atomic notes with dynamic inter-linkages generated by the model.
 
-### 2.7.1 Confucius Code Agent (CCA)
+### 2.6.1 Confucius Code Agent (CCA)
 
 **Confucius Code Agent** [37] presents a particularly relevant comparison, achieving 54.3% Resolve@1 on SWE-Bench-Pro through sophisticated scaffolding. CCA introduces several mechanisms that parallel SPACE:
 
@@ -132,37 +114,29 @@ Recent work has moved beyond passive storage toward **agentic memory**—systems
 
 ### CCA vs SPACE: Implicit vs Explicit Control
 
-| Dimension | CCA | SPACE |
-| :--- | :--- | :--- |
-| Compression Trigger | Automatic (threshold) | Explicit (`return -m`) |
-| Scope Management | Implicit (visibility rules) | Explicit (`scope`/`return`) |
-| Note Creation | Automatic (hindsight) | Explicit (`note`/`insight`) |
-| Summarization | Separate Architect LLM | Agent's own synthesis |
-| Training Required | No | No |
+The key philosophical difference: CCA automates context management decisions (threshold-based compression, automatic hindsight notes, separate Architect LLM for summarization), while SPACE makes these decisions explicit agent actions (`return -m`, `note`, `insight`). CCA's approach reduces cognitive burden but sacrifices transparency; SPACE's approach requires more discipline but produces auditable, interpretable memory trails.
 
-The key philosophical difference: **CCA automates context management decisions** (when to compress, what to note), while **SPACE makes these decisions explicit agent actions**. CCA's approach reduces cognitive burden but sacrifices transparency; SPACE's approach requires more discipline but produces auditable, interpretable memory trails.
+CCA's "hindsight notes" are complementary to SPACE's prospective notes: hindsight captures *what went wrong* after the fact, while SPACE's notes capture *what matters* at the moment of transition.
 
-CCA's "hindsight notes" are complementary to SPACE's prospective notes: hindsight captures *what went wrong* after the fact, while SPACE's notes capture *what matters* at the moment of transition. A hybrid could combine both patterns.
-
-### 2.7.2 Positioning
+### 2.6.2 Positioning
 
 These systems (Mem0, A-MEM, CCA) represent varying degrees of *implicit* vs *explicit* management. CCA moves closest to explicit management but offloads the cognitive burden to specialized sub-agents (Architect, Note-Taker). SPACE represents the fully *explicit* pole: the primary agent organizes memory for itself as a core part of its reasoning loop. This shifts the burden from orchestration overhead (multi-agent swarms) to the single agent's reasoning capabilities.
 
-## 2.8 Context Compression and Folding
+## 2.7 Context Compression and Folding
 
 A parallel research thread addresses context limits through **learned compression**—training models to autonomously decide when and how to compress their context.
 
-### 2.8.1 Context-Folding
+### 2.7.1 Context-Folding
 
 **Context-Folding** [2] introduces an agentic mechanism where models actively manage their working context through two operations: `branch(description, prompt)` creates a temporary sub-trajectory for a localized subtask, and `return(message)` rejoins the main thread while "folding" away intermediate steps. The key innovation is **FoldGRPO**, a reinforcement learning algorithm with dense, token-level process rewards including an "Unfolded Token Penalty" (discouraging token-heavy operations in the main context) and an "Out-of-Scope Penalty" (maintaining focus within sub-tasks).
 
 Context-Folding achieves 62.0% on BrowseComp-Plus and 58.0% on SWE-Bench Verified using only a 32K token budget—surpassing ReAct baselines requiring 327K contexts. The authors report **over 90% context compression**, reducing full 100K+ token trajectories to ~8K tokens in the main thread.
 
-Critically, Context-Folding implements a **plan-execution framework** where the agent alternates between: (i) a *Planning State* in the main thread for high-level reasoning, where token-intensive tool use is discouraged; and (ii) an *Execution State* within branches for completing sub-tasks, where creating new branches is disabled. This mirrors SPACE's radial topology with enforced discipline.
+Critically, Context-Folding implements a **plan-execution framework** where the agent alternates between: (i) a *Planning State* in the main thread for high-level reasoning, where token-intensive tool use is discouraged; and (ii) an *Execution State* within branches for completing sub-tasks, where creating new branches is disabled. This mirrors SPACE's hub-and-spoke topology with enforced discipline.
 
 However, Context-Folding employs **stack-based navigation**: branches must return in LIFO (Last-In-First-Out) order, limiting exploration patterns to strictly hierarchical decomposition. The approach also requires training a 36B parameter model (Seed-OSS-36B) with RL, making it non-portable to other models.
 
-### 2.8.2 AgentFold
+### 2.7.2 AgentFold
 
 **AgentFold** [1] introduces a sophisticated two-scale folding mechanism that treats context as "a dynamic cognitive workspace to be actively sculpted, rather than a passive log to be filled."
 
@@ -183,7 +157,7 @@ The key innovation is a **flexible look-back mechanism**: the agent outputs a JS
 *   **~7K tokens after 100 turns** (vs. linear growth to context limits)
 *   Scales to **500+ interaction turns**
 
-### 2.8.3 Context as a Tool (CaT)
+### 2.7.3 Context as a Tool (CaT)
 
 **CaT** [28] elevates context management from a passive heuristic to "a callable and plannable capability." The framework formalizes a structured context workspace:
 
@@ -210,7 +184,7 @@ Where:
 
 **Key Distinction from Static Compression**: CaT is "execution-driven and active"—the model learns *when* to compress based on task dynamics, unlike Context-Folding's stack-based triggers or LLMLingua's static compression.
 
-### 2.8.4 Comparative Analysis: Learned Compression Approaches
+### 2.7.4 Comparative Analysis: Learned Compression Approaches
 
 Table 2 contrasts these learned compression approaches with SPACE:
 
@@ -221,8 +195,10 @@ Table 2 contrasts these learned compression approaches with SPACE:
 | Compression Trigger | Learned (branch/return) | Learned (JSON directive) | Learned (3 signals) | **Explicit (`return -m`)** |
 | Folding Granularity | Branch-level | Multi-scale (micro/macro) | Milestone-based | **Scope-level** |
 | Look-back | Fixed (current branch) | Flexible (agent-chosen range) | Fixed (recent $k$ steps) | **Explicit (notes query)** |
-| Context @100 turns | ~8K (main thread) | ~7K | ~4.7K | **~1.4K (preliminary)** |
+| Context @100 turns | ~8K (main thread) | ~7K | ~4.7K | **See §5** |
+| Memory Tiers | 2 (context + summary) | 2 (context + summary) | 2 (context + summary) | **3 (working/episodic/semantic) + session management** |
 | Semantic Memory | No | No | No | **Yes (insights)** |
+| Cross-Session Persistence | No | No | No | **Yes (projects)** |
 | Model Portability | No | No | No | **Yes** |
 
 ### Key Architectural Differences
@@ -238,32 +214,23 @@ Table 2 contrasts these learned compression approaches with SPACE:
 *   **SPACE's explicit notes** achieve similar functionality but prospectively: the agent declares what matters at transition time via `note -m`, rather than retrospectively deciding what to discard.
 
 **Memory Tiers**:
-All three learned approaches operate on a **two-tier model** (active context + compressed summaries). SPACE uniquely introduces a **three-tier model**:
+All three learned approaches operate on a **two-tier model** (active context + compressed summaries). SPACE introduces a **three-tier model** grounded in cognitive science:
 1.  Working memory (ephemeral, cleared on return)
 2.  Episodic memory (notes, scope-local, persistent)
-3.  Semantic memory (insights, global, persistent)
+3.  Semantic memory (insights, global, persistent across all sessions)
+
+Additionally, a project-based session management mechanism enables cross-session episodic retrieval without conflating organizational scope with memory type.
 
 This enables knowledge patterns impossible with compression alone: an insight discovered in `fix/auth-bug` immediately benefits `feature/new-endpoint` without retrieval.
 
 **Training vs Architecture**:
-The fundamental tradeoff remains: learned approaches achieve tighter compression through optimized policies (CaT's 70% ratio, AgentFold's 7K@100 turns), while SPACE achieves comparable results (~88% on sequential tasks) through architectural constraints alone.
+The fundamental tradeoff remains: learned approaches achieve tighter compression through optimized policies (CaT's 70% ratio, AgentFold's 7K@100 turns), while SPACE aims for comparable results through architectural constraints alone—a hypothesis we evaluate in §5.
 
-### 2.8.5 The Folding Paradigm: A Unified View
+### 2.7.5 The Folding Paradigm: A Unified View
 
-Context-Folding, AgentFold, and CaT represent a coherent **folding paradigm** with shared principles:
-1.  **Active over Passive**: Agents actively manage context rather than passively accumulating.
-2.  **Summarize at Boundaries**: Compression occurs at meaningful transition points.
-3.  **Preserve Decisions**: Summaries retain key decisions and outcomes, discarding intermediate noise.
-4.  **Bounded Growth**: Context size stabilizes regardless of task length.
+Context-Folding, AgentFold, and CaT represent a coherent **folding paradigm** with shared principles: (1) active rather than passive context management, (2) compression at meaningful transition boundaries, (3) preserving key decisions while discarding intermediate noise, and (4) bounded context growth regardless of task length.
 
-SPACE shares these principles but diverges in implementation:
-
-| Principle | Folding Paradigm | SPACE |
-| :--- | :--- | :--- |
-| Active management | Learned skill | Architectural constraint |
-| Boundary detection | Model decides | Agent commands |
-| Summary content | Model decides | Agent writes |
-| Memory persistence | Summaries only | Notes + Insights |
+SPACE shares these principles but diverges in implementation. Where the folding paradigm treats context management as a learned skill (model decides boundaries and summary content), SPACE treats it as an explicit interface (agent commands boundaries and writes summaries). Where folding produces session-only summaries, SPACE produces persistent notes and insights.
 
 **The key question**: Should context management be a **learned skill** (folding) or an **explicit interface** (SPACE)?
 
@@ -278,11 +245,25 @@ Arguments for explicit (SPACE):
 *   Interpretable (all decisions are observable).
 *   Persistent memory (notes survive beyond summaries).
 
-### 2.8.6 Other Compression Approaches
+### 2.7.6 Other Compression Approaches
 
 **HiAgent** [3] decomposes tasks into subgoals with associated context chunks, achieving 35% context reduction without training. **ACON** [29] provides a universal agent context optimization framework supporting both history and observation compression, reducing memory usage by 26-54% while preserving task success. These approaches focus on compression mechanics rather than the navigation and memory structures that SPACE provides.
 
-## 2.9 Challenges in Long-Running Coding Agents
+### 2.7.7 Test-Time Compute and Adaptive Reasoning
+
+Test-time compute (TTC) has emerged as a key mechanism for improving LLM performance on complex tasks [41]. The paradigm encompasses multiple strategies: **chain-of-thought prompting** [38] elicits step-by-step reasoning; **self-consistency** [47] samples diverse reasoning paths and marginalizes to find consistent answers; **tree-of-thoughts** [39] enables deliberate exploration with lookahead and backtracking; and **graph-of-thoughts** [48] generalizes this to arbitrary graph structures where thoughts can be combined and refined through feedback loops.
+
+Recent work formalizes TTC scaling, demonstrating that optimally allocating inference-time compute can be more effective than scaling model parameters [41]. This has led to **token-level reasoning models** (e.g., OpenAI o-series) that generate extensive internal deliberation before producing outputs.
+
+However, most TTC strategies operate within a single, monolithic context, making them vulnerable to three structural limitations:
+
+1. **Implicit State**: Reasoning states are encoded in token sequences rather than explicit structures, making it difficult to distinguish exploratory reasoning from committed decisions.
+2. **Cumulative Interference**: Extended deliberation accumulates in context, where noise from discarded reasoning paths interferes with subsequent decisions.
+3. **Unbounded Expansion**: Tree and graph-based approaches can explode combinatorially, expending tokens on paths that never influence the final result.
+
+SPACE offers a complementary perspective: rather than increasing token budgets or recursively expanding prompts, additional computation is allocated through **controlled scope creation**. Each scope provides a bounded deliberation space with full access to semantic knowledge (insights) but leaves no residual trace upon completion. This transforms TTC from an implicit, unstructured process into a first-class, inspectable operation—enabling scalable deliberation without context collapse.
+
+## 2.8 Challenges in Long-Running Coding Agents
 
 The specific domain of software engineering magnifies context challenges due to the iterative nature of development. Benchmarks like **SWE-bench** [20] require agents to navigate large repositories, reproduce bugs, and verify fixes through repeated **Edit-Run-Debug loops**.
 
@@ -302,66 +283,24 @@ Table 1 summarizes the landscape of context management approaches:
 | CaT [28] | 3-signal compression | SFT (20K) | 70% | Linear | No |
 | HiAgent [3] | Subgoal chunking | No | 35% | Hierarchical | No |
 | ACON [29] | History+Obs compression | No | 26-54% | Linear | No |
-| **SPACE (Ours)** | **Scope + Notes + Insights** | **No** | **~88%** | **Radial** | **Yes (3-tier)** |
+| **SPACE (Ours)** | **Scope + Notes + Insights** | **No** | **TBD** | **Hub-and-spoke** | **Yes (3-tier + projects)** |
 
-## 2.10 Positioning Our Contribution
+## 2.9 Positioning Our Contribution
 
-SPACE occupies a unique position in the design space of context management systems. Having analyzed nine contemporary approaches, we identify four orthogonal dimensions that distinguish SPACE:
+SPACE occupies a unique position in the design space of context management systems. We identify five dimensions that distinguish our approach:
 
-### Training Requirements
+**Training and Deployment.** Learned compression approaches (Context-Folding, AgentFold, CaT) require training on task-specific trajectories, producing models that are not transferable across domains. RLM requires no training but demands frontier-class models (>400B parameters) capable of generating correct Python code. CCA requires no training but is framework-specific. SPACE requires no training and works with any tool-use capable model.
 
-| Approach | Training | Deployment |
-| :--- | :--- | :--- |
-| Context-Folding | RL (FoldGRPO) | Model-specific |
-| AgentFold | SFT (Fold-Generator) | Model-specific |
-| CaT | SFT (20K trajectories) | Model-specific |
-| RLM | None | Frontier models only (>400B) |
-| CCA | None | Framework-specific |
-| **SPACE** | **None** | **Any tool-use model** |
+**Abstraction Level.** On the spectrum from low-level (RLM's raw Python generation) to high-level (CCA's multi-agent orchestration), SPACE occupies the high-level end with simple CLI commands. This shifts complexity from code generation to command selection, dramatically reducing failure modes.
 
-SPACE is the only approach achieving high compression (~88%) with **zero training** and **universal model compatibility**.
+**Memory Architecture.** While compression approaches operate on one or two memory tiers (active context and summaries), SPACE introduces a three-tier architecture grounded in cognitive science: working memory (ephemeral), episodic memory (scope-local notes), and semantic memory (global insights). A complementary project-based session management mechanism enables cross-session episodic retrieval without conflating organizational scope with memory type.
 
-### Abstraction Level
+**Cross-Session Persistence.** A critical distinction: most approaches reset completely between sessions (CCA, AgentFold, CaT) or require external databases for persistence (MemGPT). SPACE provides native cross-session persistence through the project mechanism. When a new project begins, previous scopes are archived with `@project` notation while insights persist globally. This enables **lifelong learning**: an agent benefits from knowledge discovered in previous sessions without explicit retrieval.
 
-```
-Low-level ←————————————————————————————→ High-level
-     │                                       │
-    RLM          CaT/AgentFold    CCA      SPACE
- (raw Python)   (learned tools)  (multi-agent) (CLI commands)
-```
+**Prospective vs. Retrospective.** Most compression approaches make retrospective decisions about what to preserve—AgentFold's flexible look-back, CaT's milestone triggers, CCA's hindsight notes. SPACE makes prospective declarations: agents capture what matters *at the moment of transition* via `note` and `insight` commands. This preserves the agent's understanding in context that retrospective compression might not capture.
 
-RLM offers maximum flexibility but requires frontier models. SPACE offers maximum accessibility—any model that can call tools can use SPACE.
+**Design Tradeoffs.** SPACE's simplicity comes with explicit tradeoffs. Learned approaches can potentially achieve tighter compression by identifying subtle redundancies. Stack-based navigation (Context-Folding) enforces structured decomposition that may prevent certain errors. SPACE accepts these tradeoffs in exchange for zero training overhead, interpretable state, flexible navigation patterns, and persistent cross-session knowledge.
 
-### Memory Architecture
+### Summary
 
-| Approach | Memory Tiers | Persistence |
-| :--- | :--- | :--- |
-| Context-Folding | 1 (active context) | Session only |
-| AgentFold | 2 (active + summaries) | Session only |
-| CaT | 2 (M(t) + I(k)) | Session only |
-| CCA | 2 (transient + hindsight) | Cross-session |
-| **SPACE** | **3 (working/episodic/semantic)** | **Cross-session** |
-
-SPACE's three-tier architecture enables knowledge patterns impossible with compression:
-*   **Working → Episodic**: `note -m` captures task-specific events
-*   **Episodic → Semantic**: `insight -m` elevates patterns to global knowledge
-*   **Cross-scope transfer**: Insights from `fix/auth-bug` benefit `feature/new-endpoint`
-
-### Prospective vs. Retrospective
-
-| Approach | When decisions are made |
-| :--- | :--- |
-| AgentFold | Retrospective (flexible look-back) |
-| CaT | Retrospective (milestone triggers) |
-| CCA | Retrospective (hindsight notes) |
-| **SPACE** | **Prospective (transition declarations)** |
-
-SPACE's prospective approach captures the agent's understanding *in the moment* rather than retrospectively deciding what to preserve. When an agent executes `return -m "Found root cause: missing null check in parser.py:142"`, it captures precisely the insight that motivated the transition—context that a compression model operating on raw logs might not preserve.
-
-### Design Tradeoffs
-
-SPACE's simplicity comes with explicit tradeoffs. Learned approaches can potentially achieve better compression ratios by identifying subtle redundancies humans might miss. Stack-based navigation (Context-Folding) enforces structured decomposition that may prevent certain errors. SPACE accepts these tradeoffs in exchange for:
-1.  **Zero training overhead**: Deploy immediately with any model.
-2.  **Interpretable state**: All memory is human-readable and auditable.
-3.  **Flexible navigation**: Support exploration patterns beyond hierarchical decomposition.
-4.  **Persistent knowledge**: Notes and insights survive beyond individual sessions.
+In contrast to prior work that attempts to *preserve more context* or *compress context more efficiently*, SPACE focuses on **controlling when context exists at all**. Rather than compressing reasoning after the fact, reasoning is designed to be *disposable by construction*. By combining cognitive memory principles with explicit execution constraints and a layered hub-and-spoke topology, SPACE offers a complementary direction to long-context modeling and test-time compute, emphasizing stability, interpretability, and long-horizon scalability.
