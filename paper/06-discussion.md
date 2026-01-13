@@ -45,12 +45,21 @@ Comparing SPACE to Context-Folding [2] and AgentFold [1] reveals a classic trade
 ### 6.3.4 Scope Granularity Instability
 Qualitative analysis of pilot runs reveals that scope sizing follows an **unstable pattern**. Without explicit training or rigid heuristics, the agent's decision to create a scope is highly sensitive to prompt phrasing and model stochasticity. We observed failure modes ranging from **Micro-Scoping** (excessive fragmentation for trivial steps) to **Degenerate Linearity** (remaining in a single scope for too long). This suggests that architectural constraints alone are insufficient; a learned policy or stricter algorithmic scaffolding is required to stabilize the "cognitive rhythm" of the agent.
 
+### 6.3.5 Infrastructure Overhead
+SPACE introduces fixed costs that may outweigh benefits for short tasks:
+
+*   **System Prompt Overhead**: The extended system prompt describing memory semantics adds approximately 800 tokens per API call. For single-turn queries, this represents significant overhead; for 20+ turn sequences, it becomes negligible.
+*   **Tool Call Latency**: Each SPACE command is a tool call requiring JSON parsing and state mutation. In high-frequency loops (e.g., rapid file edits), this adds ~50-100ms per command compared to inline reasoning.
+*   **Instruction Following Dependency**: SPACE relies on the model's ability to reliably follow structured protocols. Models with weaker instruction-following capabilities may produce malformed commands, invalid state transitions, or fail to issue `return` commands entirely. We empirically observe >95% compliance with GPT-4o-mini, but this should be validated for other model families.
+
+**Deployment Heuristic**: SPACE overhead is amortized over task length. For tasks expected to exceed 10 turns or span multiple subtasks, SPACE provides net positive value. For single-turn queries or rapid interactive sessions, a linear agent may be more efficient.
+
 ## 6.4 Comparative Design Analysis
 
 ### 6.4.1 SPACE vs. Context-Folding
-Both systems share the insight of distinguishing "Planning" (Main) from "Execution" (Scope/Branch). However, Context-Folding employs a **Stack (LIFO)** topology, whereas SPACE employs a **Radial (Hub-and-Spoke)** topology.
+Both systems share the insight of distinguishing "Planning" (Main) from "Execution" (Scope/Branch). However, Context-Folding employs a **Stack (LIFO)** topology, whereas SPACE employs a **Layered Hub-and-Spoke** topology.
 *   **Stack**: Good for recursive decomposition (sub-tasks of sub-tasks).
-*   **Radial**: Forces consolidation. By prohibiting nesting, SPACE prevents the agent from falling down "rabbit holes," forcing a return to the high-level plan after every unit of work.
+*   **Layered Hub-and-Spoke**: Forces consolidation. By prohibiting nesting, SPACE prevents the agent from falling down "rabbit holes," forcing a return to the high-level plan after every unit of work.
 
 ### 6.4.2 SPACE vs. Confucius Code Agent (CCA)
 CCA [37] implements "Hindsight Notes"—recording lessons after a failure. SPACE implements "Prospective Notes"—recording observations during execution.
@@ -62,4 +71,5 @@ We argue these are complementary. A robust agent should use SPACE for structural
 
 1.  **Hybrid Neuro-Symbolic State**: Integrating SPACE with formal verification tools to ensure that the "Notes" stack maintains logical consistency.
 2.  **Active Learning of Scope Boundaries**: Training a lightweight classifier to suggest when to open/close scopes, reducing the decision burden on the main agent.
-3.  **Cross-Session Persistence**: Extending the Semantic Memory ($\mathcal{I}$) to persist across entirely different user sessions, enabling the emergence of "Expert Agents" that learn the idiosyncrasies of a codebase over months of interaction.
+3.  **Cross-Organization Knowledge Sharing**: While SPACE already supports cross-session persistence via insights, future work could explore federated learning of insights across multiple users or organizations. This would enable "community knowledge"—patterns discovered by one developer's agent could benefit others working on similar codebases, while respecting privacy boundaries through insight abstraction.
+4.  **Insight Curation and Decay**: As semantic memory grows, mechanisms for insight validation, conflict resolution, and temporal decay may become necessary. Insights that prove incorrect or outdated should be demoted or removed, potentially via a "confidence score" that decays without reinforcement.

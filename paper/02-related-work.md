@@ -283,7 +283,7 @@ Table 1 summarizes the landscape of context management approaches:
 | CaT [28] | 3-signal compression | SFT (20K) | 70% | Linear | No |
 | HiAgent [3] | Subgoal chunking | No | 35% | Hierarchical | No |
 | ACON [29] | History+Obs compression | No | 26-54% | Linear | No |
-| **SPACE (Ours)** | **Scope + Notes + Insights** | **No** | **TBD** | **Hub-and-spoke** | **Yes (3-tier + projects)** |
+| **SPACE (Ours)** | **Scope + Notes + Insights** | **No** | **TBD** | **Layered Hub-and-spoke** | **Yes (3-tier + projects)** |
 
 ## 2.9 Positioning Our Contribution
 
